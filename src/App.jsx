@@ -45,14 +45,15 @@ const manualFirebaseConfig = {
 };
 
 // Vercel / Production Specific Configuration
+// Vercel / Production Specific Configuration
 const vercelFirebaseConfig = {
-  apiKey: "AIzaSyC0nvYY0jnChhDcCplUOi5vGd2cegbW2Ts",
-  authDomain: "option-focus.firebaseapp.com",
-  projectId: "option-focus",
-  storageBucket: "option-focus.firebasestorage.app",
-  messagingSenderId: "510950452283",
-  appId: "1:510950452283:web:1a2d6eab90b1295e3d801e",
-  measurementId: "G-F0KGTS8H4L"
+  apiKey: "AIzaSyDKxiy5V3lRNGblSNPCBgimoy4fAbx4RkY",
+  authDomain: "option-focus-test.firebaseapp.com",
+  projectId: "option-focus-test",
+  storageBucket: "option-focus-test.firebasestorage.app",
+  messagingSenderId: "652569284691",
+  appId: "1:652569284691:web:e710031785cfe2277236a6",
+  measurementId: "G-TYXG8RBKQV"
 };
 // ==================================================================================
 
