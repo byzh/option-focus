@@ -12,9 +12,10 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAnalytics } from "firebase/analytics";
 import {
   getAuth,
-  signInAnonymously,
-  onAuthStateChanged,
-  signInWithCustomToken
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged
 } from 'firebase/auth';
 import {
   getFirestore,
@@ -360,6 +361,39 @@ const ExecutionModal = ({ plan, onClose, onConfirm }) => {
   );
 };
 
+// --- Login Screen ---
+const LoginScreen = ({ onLogin, loading, error }) => (
+  <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4">
+    <Card className="w-full max-w-sm p-8 text-center shadow-xl">
+      <div className="mx-auto w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-6 text-blue-600 dark:text-blue-400">
+        <TrendingUp size={32} />
+      </div>
+      <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">OptionFocus <span className="text-xs font-normal opacity-70">v2</span></h1>
+      <p className="text-slate-600 dark:text-slate-400 mb-8 text-sm">
+        Sign in to sync your data across devices
+      </p>
+
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 text-red-600 text-xs p-3 rounded-lg mb-4 text-left">
+          {error}
+        </div>
+      )}
+
+      <Button onClick={onLogin} disabled={loading} className="w-full flex items-center justify-center gap-3 py-3 !bg-white !text-slate-700 border border-slate-300 hover:!bg-slate-50 dark:!bg-slate-700 dark:!text-white dark:border-slate-600 shadow-sm">
+        {loading ? <Loader2 className="animate-spin" /> : (
+          <svg className="w-5 h-5" viewBox="0 0 24 24">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+          </svg>
+        )}
+        Sign in with Google
+      </Button>
+    </Card>
+  </div>
+);
+
 // --- Main App ---
 export default function App() {
   if (initError) return <ErrorScreen error={initError} />;
@@ -383,28 +417,42 @@ export default function App() {
   const [formData, setFormData] = useState({ id: null, ticker: '', type: 'CALL', direction: 'BUY', actionCategory: 'OPEN', strike: '', expiration: getLocalTodayString(), newStrike: '', newExpirationPeriod: '', entryPrice: '', rollCredit: '0', selectedPositionId: '', actionDate: getLocalTodayString(), notes: '' });
 
   // Auth
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState(null);
+
+  // Auth State Listener
   useEffect(() => {
     if (!auth) return;
-    const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
-      } catch (error) {
-        console.error("Firebase Auth Error:", error);
-        setMessageModal({
-          isOpen: true,
-          title: "连接失败 (Connection Failed)",
-          content: `无法连接到云端。\n错误信息: ${error.message}\n\n请检查 Firebase 控制台：\n1. Authentication -> Sign-in method -> 是否开启了 'Anonymous' (匿名登录)？\n2. Settings -> Authorized domains -> 是否包含 localhost？`,
-          type: "error"
-        });
-      }
-    };
-    initAuth();
-    return onAuthStateChanged(auth, (u) => setUser(u));
+    return onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      if (u) setIsLoggingIn(false);
+    });
   }, []);
+
+  const handleGoogleLogin = async () => {
+    if (!auth) return;
+    setIsLoggingIn(true);
+    setLoginError(null);
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error("Login Failed:", error);
+      setLoginError(error.message);
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    if (!auth) return;
+    try {
+      await signOut(auth);
+      setPositions([]);
+      setPlans([]);
+    } catch (error) {
+      console.error("Logout Failed:", error);
+    }
+  };
 
   // Firestore Sync
   useEffect(() => {
@@ -563,6 +611,8 @@ export default function App() {
   const todaysPlanCount = plans.filter(p => p.actionDate === getLocalTodayString()).length;
   const expiredCount = positions.filter(p => p.status !== 'CLOSED' && isExpiredByTwoDays(p.expiration)).length;
 
+  if (!user) return <LoginScreen onLogin={handleGoogleLogin} loading={isLoggingIn} error={loginError} />;
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-sans transition-colors duration-200">
       <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10">
@@ -571,12 +621,19 @@ export default function App() {
             <div className="bg-blue-600 p-2 rounded-lg text-white"><TrendingUp size={20} /></div>
             <div>
               <h1 className="text-xl font-bold tracking-tight">OptionFocus <span className="text-xs font-normal opacity-70 ml-1">v2</span></h1>
-              {user ? <p className="text-[10px] text-emerald-500 flex items-center gap-1"><Cloud size={10} /> 云端已连接</p> : <p className="text-[10px] text-slate-400">正在连接云端...</p>}
+              <p className="text-[10px] text-emerald-500 flex items-center gap-1"><Cloud size={10} /> 云端已连接</p>
             </div>
           </div>
-          <button onClick={() => setActiveTab('settings')} className={`p-2 rounded-lg transition-colors relative ${activeTab === 'settings' ? 'bg-slate-100 dark:bg-slate-700 text-blue-600' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
-            <Settings size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 mr-2">
+              {user.photoURL && <img src={user.photoURL} alt="Avatar" className="w-6 h-6 rounded-full" />}
+              <span className="truncate max-w-[100px]">{user.displayName || user.email}</span>
+            </div>
+            <button onClick={() => setActiveTab('settings')} className={`p-2 rounded-lg transition-colors ${activeTab === 'settings' ? 'bg-slate-100 dark:bg-slate-700 text-blue-600' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`} title="Settings">
+              <Settings size={20} />
+            </button>
+            <button onClick={handleLogout} className="p-2 text-slate-500 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Log Out"><LogOut size={18} /></button>
+          </div>
         </div>
       </header>
 
