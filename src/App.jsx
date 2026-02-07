@@ -32,30 +32,7 @@ import {
 
 // ==================================================================================
 // 🔧 必填配置区域 (CONFIGURATION AREA)
-// 请登录 https://console.firebase.google.com/ 创建项目
-// 在 "Project settings" -> "General" -> "Your apps" 中复制配置到下方
-// ==================================================================================
-const manualFirebaseConfig = {
-  apiKey: "AIzaSyDKxiy5V3lRNGblSNPCBgimoy4fAbx4RkY",
-  authDomain: "option-focus-test.firebaseapp.com",
-  projectId: "option-focus-test",
-  storageBucket: "option-focus-test.firebasestorage.app",
-  messagingSenderId: "652569284691",
-  appId: "1:652569284691:web:e710031785cfe2277236a6",
-  measurementId: "G-TYXG8RBKQV"
-};
-
-// Vercel / Production Specific Configuration
-// Vercel / Production Specific Configuration
-const vercelFirebaseConfig = {
-  apiKey: "AIzaSyC0nvYY0jnChhDcCplUOi5vGd2cegbW2Ts",
-  authDomain: "option-focus.firebaseapp.com",
-  projectId: "option-focus",
-  storageBucket: "option-focus.firebasestorage.app",
-  messagingSenderId: "510950452283",
-  appId: "1:510950452283:web:1a2d6eab90b1295e3d801e",
-  measurementId: "G-F0KGTS8H4L"
-};
+// 请在项目根目录创建 .env.local 文件并填入以下配置
 // ==================================================================================
 
 // --- Initialization Logic ---
@@ -66,18 +43,7 @@ let analytics = null;
 let initError = null;
 
 const getFirebaseConfig = () => {
-  // 0. Vercel Production Check (High Priority for Deployment)
-  // Uses provided keys IF AND ONLY IF deploying in Vercel (PROD mode)
-  if (import.meta.env.PROD) {
-    return vercelFirebaseConfig;
-  }
-
-  // 1. 优先使用代码中的手动配置 (Local Dev Override)
-  if (manualFirebaseConfig.apiKey && manualFirebaseConfig.apiKey.length > 0) {
-    return manualFirebaseConfig;
-  }
-
-  // 2. 尝试读取 Vite 环境变量 (本地开发/Vercel)
+  // 1. 优先尝试读取 Vite 环境变量 (本地开发/Vercel)
   try {
     if (import.meta && import.meta.env && import.meta.env.VITE_FIREBASE_API_KEY) {
       return {
@@ -86,12 +52,13 @@ const getFirebaseConfig = () => {
         projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
         storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
         messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-        appId: import.meta.env.VITE_FIREBASE_APP_ID
+        appId: import.meta.env.VITE_FIREBASE_APP_ID,
+        measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
       };
     }
   } catch (e) { }
 
-  // 3. 最后尝试全局变量 (Canvas 预览环境)
+  // 2. 最后尝试全局变量 (Canvas 预览环境)
   if (typeof __firebase_config !== 'undefined') {
     try { return JSON.parse(__firebase_config); } catch (e) { }
   }
@@ -239,10 +206,10 @@ const ConfigScreen = () => (
       <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-lg text-left text-xs mb-6 border border-amber-100 dark:border-amber-800">
         <p className="font-bold text-amber-700 dark:text-amber-400 mb-2">如何修复：</p>
         <ol className="list-decimal pl-4 space-y-1 text-slate-600 dark:text-slate-300">
-          <li>打开 src/App.jsx</li>
-          <li>找到顶部的 <b>manualFirebaseConfig</b> 区域 (约第35行)</li>
-          <li>填入您从 Firebase 控制台获取的 apiKey 等信息</li>
-          <li>保存文件，页面将自动刷新</li>
+          <li>在项目根目录创建 <b>.env.local</b> 文件</li>
+          <li>填入正确格式的 Firebase 配置 (VITE_FIREBASE_API_KEY=...)</li>
+          <li>如果是 Vercel 部署，请在 Vercel 后台添加环境变量</li>
+          <li>配置完成后，请重启开发服务器</li>
         </ol>
       </div>
 
