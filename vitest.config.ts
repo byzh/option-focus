@@ -1,0 +1,14 @@
+/// <reference types="vitest" />
+import { defineConfig } from 'vitest/config'
+
+export default defineConfig({
+    test: {
+        environment: 'jsdom',
+        globals: true,
+        setupFiles: './src/test/setup.ts',
+        env: {
+            VITE_FIREBASE_API_KEY: 'test-api-key',
+        },
+    },
+})
+
