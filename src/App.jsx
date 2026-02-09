@@ -673,7 +673,24 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction }) {
       finalPnL = item.direction === 'SELL' ? (basisPerShare - closeP) * 100 : (closeP - basisPerShare) * 100;
     }
     const history = [...(item.history || [])];
-    history.push({ isInitial: true, date: item.dateOpened || 'Initial', price: item.entryPrice });
+
+    // Determine initial strike/expiration from the oldest ROLL record
+    let initialStrike = item.strike;
+    let initialExpiration = item.expiration;
+    const rollHistory = history.filter(h => h.action === 'ROLL');
+    if (rollHistory.length > 0) {
+      const firstRoll = rollHistory[rollHistory.length - 1];
+      if (firstRoll.oldStrike) initialStrike = firstRoll.oldStrike;
+      if (firstRoll.oldExpiration) initialExpiration = firstRoll.oldExpiration;
+    }
+
+    history.push({
+      isInitial: true,
+      date: item.dateOpened || 'Initial',
+      price: item.entryPrice,
+      initialStrike,
+      initialExpiration
+    });
 
     return (
       <Card className={`p-4 hover:shadow-md transition-shadow ${isClosed ? 'opacity-75 bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800' : isExpired ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30' : ''}`}>
@@ -716,7 +733,7 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction }) {
             {history.map((h, idx) => {
               let label = "", val = 0, isCredit = false;
               if (h.isInitial) {
-                label = `初始开仓 (Initial Open) $${item.strike} (${item.expiration}) ${item.type}`;
+                label = `初始开仓 (Initial Open) $${h.initialStrike} (${h.initialExpiration}) ${item.type}`;
                 if (item.direction === 'SELL') { val = -Math.abs(item.entryPrice); isCredit = true; } else { val = Math.abs(item.entryPrice); isCredit = false; }
               } else if (h.action === 'CLOSE') {
                 label = '平仓 (Close)';
