@@ -243,12 +243,42 @@ const ExecutionModal = ({ plan, onClose, onConfirm }) => {
     strike: plan.newStrike || plan.strike,
     expiration: plan.newExpirationPeriod || plan.expiration
   });
+  const [validationError, setValidationError] = useState('');
 
   const isRoll = plan.actionCategory === 'ROLL';
   const isClose = plan.actionCategory === 'CLOSE';
   const isDirect = plan.isDirect;
 
   const handleConfirm = () => {
+    // Validate price input
+    const priceStr = String(execData.price || '').trim();
+    if (!priceStr) {
+      setValidationError('请输入价格');
+      return;
+    }
+
+    const priceNum = parseFloat(priceStr);
+    if (isNaN(priceNum)) {
+      setValidationError('价格必须是有效的数字');
+      return;
+    }
+
+    // Validate strike and expiration for non-close actions
+    if (!isClose) {
+      const strikeStr = String(execData.strike || '').trim();
+      const expirationStr = String(execData.expiration || '').trim();
+
+      if (!strikeStr) {
+        setValidationError('请输入行权价');
+        return;
+      }
+      if (!expirationStr) {
+        setValidationError('请选择到期日');
+        return;
+      }
+    }
+
+    setValidationError('');
     onConfirm(plan, execData);
   };
 
@@ -262,6 +292,13 @@ const ExecutionModal = ({ plan, onClose, onConfirm }) => {
           <p className="text-sm text-slate-500 mb-4">
             {isRoll ? "请填写滚仓的净价差和新的期权详情。" : "请输入实际成交的细节。"}
           </p>
+
+          {validationError && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm p-3 rounded-lg mb-4 flex items-center gap-2">
+              <AlertCircle size={16} />
+              {validationError}
+            </div>
+          )}
 
           <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-100 dark:border-slate-800 mb-4">
             <div className="text-xs font-bold uppercase text-slate-400 mb-1">执行操作 (Action)</div>
@@ -529,8 +566,20 @@ export default function App() {
   };
 
   const deleteItem = async (id, listType) => {
-    if (!confirm("确定删除吗？")) return;
-    await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, listType === 'portfolio' ? 'positions' : 'plans', id));
+    setConfirmModal({
+      isOpen: true,
+      title: '确认删除',
+      content: '确定要删除这条记录吗？此操作无法撤销。',
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, listType === 'portfolio' ? 'positions' : 'plans', id));
+          setConfirmModal({ isOpen: false, title: '', content: '', onConfirm: () => {} });
+        } catch (e) {
+          setConfirmModal({ isOpen: false, title: '', content: '', onConfirm: () => {} });
+          setMessageModal({ isOpen: true, title: '删除失败', content: `❌ 错误信息: ${e.message}`, type: 'error' });
+        }
+      }
+    });
   };
 
   const handlePositionSelect = (posId) => {
@@ -570,7 +619,14 @@ export default function App() {
       }
       if (!plan.isDirect && plan.id) await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'plans', plan.id));
       setExecutionPlan(null);
-    } catch (e) { alert("执行失败: " + e.message); }
+    } catch (e) {
+      setMessageModal({
+        isOpen: true,
+        title: '执行失败',
+        content: `❌ 交易执行出错。\n错误信息: ${e.message}`,
+        type: 'error'
+      });
+    }
   };
 
   const openEdit = (item) => { setFormData({ ...item, id: item.id }); setShowAddModal(true); };
@@ -610,7 +666,7 @@ export default function App() {
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><Settings size={20} />设置</h2>
             <div className="space-y-6">
               <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-100 dark:border-blue-800 mt-4">
-                <h4 className="font-bold text-blue-700 dark:text-blue-300 text-sm mb-2 flex items-center gap-2"><DatabaseIcon size={14} /> 数据迁移</h4>
+                <h4 className="font-bold text-blue-700 dark:text-blue-300 text-sm mb-2 flex items-center gap-2"><Database size={14} /> 数据迁移</h4>
                 <p className="text-xs text-blue-600 dark:text-blue-400 mb-3">如果您之前使用过本地版本，可以将浏览器中的数据一键同步到云端数据库。</p>
                 <Button onClick={checkMigrationEligibility} variant="secondary" disabled={isMigrating || !user} className="w-full text-xs h-8">
                   {isMigrating ? <Loader2 size={14} className="animate-spin" /> : <CloudUpload size={14} />} 导入本地历史数据
@@ -860,5 +916,3 @@ function AddEditModal({ formData, setFormData, onSubmit, onClose, activeTab, pos
     </div>
   )
 }
-
-const DatabaseIcon = ({ size }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /></svg>);
