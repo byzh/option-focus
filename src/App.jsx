@@ -917,10 +917,10 @@ function AddEditModal({ formData, setFormData, onSubmit, onClose, activeTab, pos
             </div>
           )}
           {activeTab === 'portfolio' && (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-4 items-end">
               <Input label="初始价格 (Entry Price)" type="number" value={formData.entryPrice} onChange={e => update('entryPrice', e.target.value)} required />
-              <Input label="展期净利 (Roll Credit)" type="number" value={formData.rollCredit} onChange={e => update('rollCredit', e.target.value)} />
               <Input label="张数 (Contracts)" type="number" step="1" value={formData.contracts} onChange={e => update('contracts', e.target.value)} required />
+              <Input label="展期净利 (Roll Credit)" type="number" value={formData.rollCredit} onChange={e => update('rollCredit', e.target.value)} />
             </div>
           )}
           {activeTab === 'planner' && <Input label="执行日期 (Action Date)" type="date" value={formData.actionDate} onChange={e => update('actionDate', e.target.value)} required />}
