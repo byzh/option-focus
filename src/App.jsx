@@ -768,7 +768,11 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction }) {
               <span className="text-sm text-slate-500 dark:text-slate-400">{item.expiration} ${item.strike} {item.type}</span>
               {isClosed && <span className="bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1"><Archive size={10} /> 已平仓</span>}
               {isExpired && !isClosed && <span className="bg-red-100 text-red-600 text-xs px-2 rounded-full font-bold flex items-center gap-1"><AlertTriangle size={10} /> 已过期</span>}
-              {isExpiringSoon && <span className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1"><AlertTriangle size={10} /> 还剩 {daysUntilExpiration} 天</span>}
+              {daysUntilExpiration !== null && (
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 ${isExpiringSoon ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'}`}>
+                  {isExpiringSoon && <AlertTriangle size={10} />} 还剩 {daysUntilExpiration} 天
+                </span>
+              )}
             </div>
             <div className="text-sm text-slate-500 dark:text-slate-400">
               初始: ${parseFloat(item.entryPrice).toFixed(2)}
