@@ -417,6 +417,8 @@ export default function App() {
 
   const [messageModal, setMessageModal] = useState({ isOpen: false, title: '', content: '', type: 'info' });
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', content: '', onConfirm: () => { } });
+  const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
+  const handleSort = (key) => setSortConfig(prev => prev.key === key ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' });
 
   const [formData, setFormData] = useState({ id: null, ticker: '', type: 'CALL', direction: 'BUY', actionCategory: 'OPEN', strike: '', expiration: getLocalTodayString(), newStrike: '', newExpirationPeriod: '', entryPrice: '', rollCredit: '0', contracts: 1, selectedPositionId: '', actionDate: getLocalTodayString(), notes: '' });
 
@@ -691,6 +693,17 @@ export default function App() {
               <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-3">{activeTab === 'portfolio' ? '当前持仓 (Open Positions)' : '操作计划 (Planner)'}</h2>
               <div className="flex gap-2"><Button onClick={() => setShowAddModal(true)}><Plus size={18} /> {activeTab === 'portfolio' ? '记录持仓' : '新增备忘'}</Button></div>
             </div>
+            {activeTab === 'portfolio' && (
+              <div className="flex items-center gap-2 mb-4 text-xs">
+                <span className="text-slate-400 font-medium">排序:</span>
+                {[{ key: 'ticker', label: '名称' }, { key: 'days', label: '剩余天数' }].map(({ key, label }) => (
+                  <button key={key} onClick={() => handleSort(key)} className={`flex items-center gap-1 px-2.5 py-1 rounded-full border transition-colors ${sortConfig.key === key ? 'bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-medium' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}>
+                    {label}
+                    {sortConfig.key === key && <ChevronUp size={12} className={sortConfig.direction === 'desc' ? 'rotate-180 transition-transform' : 'transition-transform'} />}
+                  </button>
+                ))}
+              </div>
+            )}
             {activeTab === 'portfolio' && expiredCount > 0 && (
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-6 flex items-center gap-3 animate-in slide-in-from-top-2">
                 <ScanSearch size={24} className="text-red-500" />
@@ -699,7 +712,17 @@ export default function App() {
             )}
             <div className="grid gap-4">
               {(activeTab === 'portfolio' ? positions : plans).length === 0 && <div className="text-center py-12 text-slate-400 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700"><p>{!user ? "正在连接云端..." : "暂无记录"}</p></div>}
-              {(activeTab === 'portfolio' ? positions : plans).sort((a, b) => (b.dateOpened || b.actionDate || '').localeCompare(a.dateOpened || a.actionDate || '')).map(item => (
+              {(activeTab === 'portfolio' ? positions : plans).sort((a, b) => {
+                if (activeTab !== 'portfolio') return (b.actionDate || '').localeCompare(a.actionDate || '');
+                const dir = sortConfig.direction === 'asc' ? 1 : -1;
+                if (sortConfig.key === 'ticker') return (a.ticker || '').localeCompare(b.ticker || '') * dir;
+                if (sortConfig.key === 'days') {
+                  const today = new Date(); today.setHours(0, 0, 0, 0);
+                  const getDays = (item) => item.expiration ? Math.ceil((new Date(item.expiration + 'T00:00:00') - today) / 86400000) : Infinity;
+                  return (getDays(a) - getDays(b)) * dir;
+                }
+                return (b.dateOpened || '').localeCompare(a.dateOpened || '') * dir;
+              }).map(item => (
                 <ItemCard
                   key={item.id} item={item} type={activeTab} onEdit={openEdit} onDelete={deleteItem}
                   onExecute={() => { setExecutionPlan(item); setExecData({ price: '', strike: item.newStrike || item.strike, expiration: item.newExpirationPeriod || item.expiration }); }}
