@@ -722,6 +722,16 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction }) {
     const netBasis = ((parseFloat(item.entryPrice) || 0) + (parseFloat(item.rollCredit) || 0)) * 100;
     const isClosed = item.status === 'CLOSED';
     const isExpired = !isClosed && isExpiredByTwoDays(item.expiration);
+
+    const daysUntilExpiration = (() => {
+      if (isClosed || isExpired || !item.expiration) return null;
+      const exp = new Date(item.expiration);
+      const now = new Date();
+      exp.setHours(0, 0, 0, 0);
+      now.setHours(0, 0, 0, 0);
+      return Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+    })();
+    const isExpiringSoon = daysUntilExpiration !== null && daysUntilExpiration <= 7;
     let finalPnL = null;
     if (isClosed || isExpired) {
       const closeP = isClosed ? (parseFloat(item.closePrice) || 0) : 0;
@@ -758,6 +768,7 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction }) {
               <span className="text-sm text-slate-500 dark:text-slate-400">{item.expiration} ${item.strike} {item.type}</span>
               {isClosed && <span className="bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1"><Archive size={10} /> 已平仓</span>}
               {isExpired && !isClosed && <span className="bg-red-100 text-red-600 text-xs px-2 rounded-full font-bold flex items-center gap-1"><AlertTriangle size={10} /> 已过期</span>}
+              {isExpiringSoon && <span className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1"><AlertTriangle size={10} /> 还剩 {daysUntilExpiration} 天</span>}
             </div>
             <div className="text-sm text-slate-500 dark:text-slate-400">
               初始: ${parseFloat(item.entryPrice).toFixed(2)}
@@ -767,7 +778,9 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction }) {
           <div className="text-right">
             <div className="text-xs text-slate-400 font-bold uppercase">{isClosed || isExpired ? '最终盈亏 (P&L)' : '总成本 (Net Basis)'}</div>
             <div className={`text-xl font-mono font-bold ${(isClosed || isExpired) ? (finalPnL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400') : (netBasis >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}`}>
-              {(isClosed || isExpired) ? (finalPnL >= 0 ? '+' : '') + finalPnL.toFixed(2) : (netBasis >= 0 ? '+' : '') + netBasis.toFixed(0)}
+              {(isClosed || isExpired)
+                ? `${finalPnL >= 0 ? '+' : '-'}$${Math.abs(finalPnL).toFixed(2)}`
+                : `${netBasis >= 0 ? '+' : '-'}$${Math.abs(netBasis).toFixed(0)}`}
             </div>
             <div className="flex gap-1 justify-end mt-1">
               {!isClosed && !isExpired && (
