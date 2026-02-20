@@ -418,7 +418,7 @@ export default function App() {
   const [messageModal, setMessageModal] = useState({ isOpen: false, title: '', content: '', type: 'info' });
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', content: '', onConfirm: () => { } });
 
-  const [formData, setFormData] = useState({ id: null, ticker: '', type: 'CALL', direction: 'BUY', actionCategory: 'OPEN', strike: '', expiration: getLocalTodayString(), newStrike: '', newExpirationPeriod: '', entryPrice: '', rollCredit: '0', selectedPositionId: '', actionDate: getLocalTodayString(), notes: '' });
+  const [formData, setFormData] = useState({ id: null, ticker: '', type: 'CALL', direction: 'BUY', actionCategory: 'OPEN', strike: '', expiration: getLocalTodayString(), newStrike: '', newExpirationPeriod: '', entryPrice: '', rollCredit: '0', contracts: 1, selectedPositionId: '', actionDate: getLocalTodayString(), notes: '' });
 
   // Auth
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -518,14 +518,19 @@ export default function App() {
     } finally { setIsMigrating(false); }
   };
 
-  const calculateNetBasis = (pos) => ((parseFloat(pos.entryPrice) || 0) + (parseFloat(pos.rollCredit) || 0)) * 100;
+  const calculateNetBasis = (pos) => {
+    const contracts = parseInt(pos.contracts) || 1;
+    return (parseFloat(pos.entryPrice) || 0) * 100 * contracts + (parseFloat(pos.rollCredit) || 0);
+  };
   const calculateFinalPnL = (pos) => {
     let closePrice = 0;
     if (pos.status === 'CLOSED') closePrice = parseFloat(pos.closePrice) || 0;
     else if (isExpiredByTwoDays(pos.expiration)) closePrice = 0;
     else return null;
-    const netBasisPerShare = calculateNetBasis(pos) / 100;
-    return pos.direction === 'SELL' ? (netBasisPerShare - closePrice) * 100 : (closePrice - netBasisPerShare) * 100;
+    const contracts = parseInt(pos.contracts) || 1;
+    const netBasis = calculateNetBasis(pos);
+    const closingValue = closePrice * 100 * contracts;
+    return pos.direction === 'SELL' ? netBasis - closingValue : closingValue - netBasis;
   };
 
   const handleSubmit = async (e) => {
@@ -535,7 +540,7 @@ export default function App() {
       return;
     }
     const colName = activeTab === 'portfolio' ? 'positions' : 'plans';
-    const newItem = { ...formData, entryPrice: parseFloat(formData.entryPrice) || 0, rollCredit: parseFloat(formData.rollCredit) || 0, strike: parseFloat(formData.strike) || 0, newStrike: parseFloat(formData.newStrike) || 0, status: formData.id ? undefined : 'OPEN', history: formData.id ? undefined : [], dateOpened: formData.id ? undefined : getLocalTodayString() };
+    const newItem = { ...formData, entryPrice: parseFloat(formData.entryPrice) || 0, rollCredit: parseFloat(formData.rollCredit) || 0, contracts: parseInt(formData.contracts) || 1, strike: parseFloat(formData.strike) || 0, newStrike: parseFloat(formData.newStrike) || 0, status: formData.id ? undefined : 'OPEN', history: formData.id ? undefined : [], dateOpened: formData.id ? undefined : getLocalTodayString() };
     Object.keys(newItem).forEach(key => newItem[key] === undefined && delete newItem[key]);
     delete newItem.id;
 
@@ -602,8 +607,9 @@ export default function App() {
         if (pos) {
           const closePrice = parseFloat(execData.price);
           await updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', pos.id), { status: 'CLOSED', closePrice, dateClosed: today, history: [{ date: today, action: 'CLOSE', closePrice, notes: 'Closed' }, ...(pos.history || [])] });
-          const netBasis = calculateNetBasis(pos) / 100;
-          const pnl = pos.direction === 'SELL' ? (netBasis - closePrice) * 100 : (closePrice - netBasis) * 100;
+          const contracts = parseInt(pos.contracts) || 1;
+          const netBasis = calculateNetBasis(pos);
+          const pnl = pos.direction === 'SELL' ? netBasis - closePrice * 100 * contracts : closePrice * 100 * contracts - netBasis;
           setMessageModal({ isOpen: true, title: '平仓成功', content: `已平仓 ${pos.ticker}。\n最终盈亏: $${pnl.toFixed(2)}`, type: 'info' });
         }
       } else if (plan.actionCategory === 'ROLL') {
@@ -630,7 +636,7 @@ export default function App() {
   };
 
   const openEdit = (item) => { setFormData({ ...item, id: item.id }); setShowAddModal(true); };
-  const closeModal = () => { setShowAddModal(false); setFormData({ id: null, ticker: '', type: 'CALL', direction: 'BUY', actionCategory: 'OPEN', strike: '', expiration: getLocalTodayString(), newStrike: '', newExpirationPeriod: '', entryPrice: '', rollCredit: '0', selectedPositionId: '', actionDate: getLocalTodayString(), notes: '' }); };
+  const closeModal = () => { setShowAddModal(false); setFormData({ id: null, ticker: '', type: 'CALL', direction: 'BUY', actionCategory: 'OPEN', strike: '', expiration: getLocalTodayString(), newStrike: '', newExpirationPeriod: '', entryPrice: '', rollCredit: '0', contracts: 1, selectedPositionId: '', actionDate: getLocalTodayString(), notes: '' }); };
   const todaysPlanCount = plans.filter(p => p.actionDate === getLocalTodayString()).length;
   const expiredCount = positions.filter(p => p.status !== 'CLOSED' && isExpiredByTwoDays(p.expiration)).length;
 
@@ -719,7 +725,8 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction }) {
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
 
   if (type === 'portfolio') {
-    const netBasis = ((parseFloat(item.entryPrice) || 0) + (parseFloat(item.rollCredit) || 0)) * 100;
+    const contracts = parseInt(item.contracts) || 1;
+    const netBasis = (parseFloat(item.entryPrice) || 0) * 100 * contracts + (parseFloat(item.rollCredit) || 0);
     const isClosed = item.status === 'CLOSED';
     const isExpired = !isClosed && isExpiredByTwoDays(item.expiration);
 
@@ -735,8 +742,8 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction }) {
     let finalPnL = null;
     if (isClosed || isExpired) {
       const closeP = isClosed ? (parseFloat(item.closePrice) || 0) : 0;
-      const basisPerShare = netBasis / 100;
-      finalPnL = item.direction === 'SELL' ? (basisPerShare - closeP) * 100 : (closeP - basisPerShare) * 100;
+      const closingValue = closeP * 100 * contracts;
+      finalPnL = item.direction === 'SELL' ? netBasis - closingValue : closingValue - netBasis;
     }
     const history = [...(item.history || [])];
 
@@ -910,9 +917,10 @@ function AddEditModal({ formData, setFormData, onSubmit, onClose, activeTab, pos
             </div>
           )}
           {activeTab === 'portfolio' && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <Input label="初始价格 (Entry Price)" type="number" value={formData.entryPrice} onChange={e => update('entryPrice', e.target.value)} required />
               <Input label="展期净利 (Roll Credit)" type="number" value={formData.rollCredit} onChange={e => update('rollCredit', e.target.value)} />
+              <Input label="张数 (Contracts)" type="number" step="1" value={formData.contracts} onChange={e => update('contracts', e.target.value)} required />
             </div>
           )}
           {activeTab === 'planner' && <Input label="执行日期 (Action Date)" type="date" value={formData.actionDate} onChange={e => update('actionDate', e.target.value)} required />}
