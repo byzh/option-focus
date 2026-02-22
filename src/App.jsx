@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { calcNetBasis, calcFinalPnL } from './calc';
 import {
   Plus, Trash2, Calendar, TrendingUp, Mail, Edit3, CheckCircle, AlertCircle,
   Settings, Loader2, X, RefreshCw, Key, List, ArrowRight, History,
@@ -520,19 +521,13 @@ export default function App() {
     } finally { setIsMigrating(false); }
   };
 
-  const calculateNetBasis = (pos) => {
-    const contracts = parseInt(pos.contracts) || 1;
-    return (parseFloat(pos.entryPrice) || 0) * 100 * contracts + (parseFloat(pos.rollCredit) || 0);
-  };
+  const calculateNetBasis = (pos) => calcNetBasis(pos.entryPrice, pos.rollCredit, pos.contracts);
   const calculateFinalPnL = (pos) => {
     let closePrice = 0;
     if (pos.status === 'CLOSED') closePrice = parseFloat(pos.closePrice) || 0;
     else if (isExpiredByTwoDays(pos.expiration)) closePrice = 0;
     else return null;
-    const contracts = parseInt(pos.contracts) || 1;
-    const netBasis = calculateNetBasis(pos);
-    const closingValue = closePrice * 100 * contracts;
-    return pos.direction === 'SELL' ? netBasis - closingValue : closingValue - netBasis;
+    return calcFinalPnL(pos.direction, calculateNetBasis(pos), closePrice, pos.contracts);
   };
 
   const handleSubmit = async (e) => {
@@ -609,9 +604,7 @@ export default function App() {
         if (pos) {
           const closePrice = parseFloat(execData.price);
           await updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', pos.id), { status: 'CLOSED', closePrice, dateClosed: today, history: [{ date: today, action: 'CLOSE', closePrice, notes: 'Closed' }, ...(pos.history || [])] });
-          const contracts = parseInt(pos.contracts) || 1;
-          const netBasis = calculateNetBasis(pos);
-          const pnl = pos.direction === 'SELL' ? netBasis - closePrice * 100 * contracts : closePrice * 100 * contracts - netBasis;
+          const pnl = calcFinalPnL(pos.direction, calculateNetBasis(pos), closePrice, pos.contracts);
           setMessageModal({ isOpen: true, title: '平仓成功', content: `已平仓 ${pos.ticker}。\n最终盈亏: $${pnl.toFixed(2)}`, type: 'info' });
         }
       } else if (plan.actionCategory === 'ROLL') {
@@ -749,7 +742,7 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction }) {
 
   if (type === 'portfolio') {
     const contracts = parseInt(item.contracts) || 1;
-    const netBasis = (parseFloat(item.entryPrice) || 0) * 100 * contracts + (parseFloat(item.rollCredit) || 0);
+    const netBasis = calcNetBasis(item.entryPrice, item.rollCredit, item.contracts);
     const isClosed = item.status === 'CLOSED';
     const isExpired = !isClosed && isExpiredByTwoDays(item.expiration);
 
@@ -765,8 +758,7 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction }) {
     let finalPnL = null;
     if (isClosed || isExpired) {
       const closeP = isClosed ? (parseFloat(item.closePrice) || 0) : 0;
-      const closingValue = closeP * 100 * contracts;
-      finalPnL = item.direction === 'SELL' ? netBasis - closingValue : closingValue - netBasis;
+      finalPnL = calcFinalPnL(item.direction, netBasis, closeP, item.contracts);
     }
     const history = [...(item.history || [])];
 
