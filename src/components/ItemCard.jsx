@@ -3,7 +3,7 @@ import {
   Archive, AlertTriangle, RefreshCw, StopCircle,
   History, ChevronUp, Edit3, Trash2, CheckSquare, ArrowRight
 } from 'lucide-react';
-import { calcNetBasis, calcFinalPnL } from '../calc';
+import { calcNetBasis, calcFinalPnL, calcBreakEven } from '../calc';
 import { isExpiredByTwoDays } from '../utils/dateUtils';
 import Card from './ui/Card';
 import Button from './ui/Button';
@@ -70,6 +70,11 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction }) {
               初始: ${parseFloat(item.entryPrice).toFixed(2)} × {contracts}
               {parseFloat(item.rollCredit) !== 0 && <span className={item.rollCredit > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}> {item.rollCredit > 0 ? '+' : ''}展期: ${parseFloat(item.rollCredit).toFixed(2)}</span>}
             </div>
+            {!isClosed && !isExpired && (
+              <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                保本价: <span className="font-mono text-slate-600 dark:text-slate-300">${calcBreakEven(item.type, item.strike, item.entryPrice, item.rollCredit).toFixed(2)}</span>
+              </div>
+            )}
           </div>
           <div className="text-right">
             <div className="text-xs text-slate-400 font-bold uppercase">{isClosed || isExpired ? '最终盈亏 (P&L)' : '总成本 (Net Basis)'}</div>

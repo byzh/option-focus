@@ -26,6 +26,18 @@ export function calcNetBasis(entryPrice, rollCredit, contracts) {
  *   BUY:  paid premium upfront → profit when close price is high
  *         pnl = closePrice × 100 × contracts - netBasis
  */
+/**
+ * Break-even stock price at expiration (per-share).
+ *   PUT:  strike - (entryPrice + rollCredit)
+ *   CALL: strike + (entryPrice + rollCredit)
+ */
+export function calcBreakEven(type, strike, entryPrice, rollCredit) {
+  const s = parseFloat(strike) || 0;
+  const ep = parseFloat(entryPrice) || 0;
+  const rc = parseFloat(rollCredit) || 0;
+  return type === 'PUT' ? s - ep - rc : s + ep + rc;
+}
+
 export function calcFinalPnL(direction, netBasis, closePrice, contracts) {
   const cp = parseFloat(closePrice) || 0;
   const ct = parseInt(contracts) || 1;

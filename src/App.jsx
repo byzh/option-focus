@@ -3,7 +3,7 @@ import { calcNetBasis, calcFinalPnL } from './calc';
 import {
   Plus, TrendingUp, Settings, Loader2,
   Cloud, CloudUpload, Database, ChevronUp,
-  AlertTriangle, ScanSearch, LogOut
+  AlertTriangle, ScanSearch, LogOut, BarChart2, Search, X
 } from 'lucide-react';
 import {
   GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
@@ -49,6 +49,11 @@ export default function App() {
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', content: '', onConfirm: () => {} });
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
   const [isRiskExpanded, setIsRiskExpanded] = useState(false);
+  const [isRealizedExpanded, setIsRealizedExpanded] = useState(false);
+  const [searchTicker, setSearchTicker] = useState('');
+  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterType, setFilterType] = useState('ALL');
+  const [filterDir, setFilterDir] = useState('ALL');
   const [formData, setFormData] = useState(EMPTY_FORM());
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState(null);
@@ -268,6 +273,34 @@ export default function App() {
               </div>
             )}
 
+            {/* Search & Filter */}
+            {activeTab === 'portfolio' && (
+              <div className="mb-4 space-y-2">
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text" placeholder="搜索代码 (Search ticker)..."
+                    value={searchTicker} onChange={e => setSearchTicker(e.target.value.toUpperCase())}
+                    className="w-full pl-8 pr-8 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  {searchTicker && <button onClick={() => setSearchTicker('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X size={14} /></button>}
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  {[['ALL', '全部'], ['OPEN', '持仓中'], ['CLOSED', '已平仓']].map(([val, label]) => (
+                    <button key={val} onClick={() => setFilterStatus(val)} className={`px-2.5 py-1 rounded-full border transition-colors ${filterStatus === val ? 'bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-medium' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}>{label}</button>
+                  ))}
+                  <span className="text-slate-300 dark:text-slate-600">|</span>
+                  {[['ALL', '全类型'], ['CALL', 'Call'], ['PUT', 'Put']].map(([val, label]) => (
+                    <button key={val} onClick={() => setFilterType(val)} className={`px-2.5 py-1 rounded-full border transition-colors ${filterType === val ? 'bg-violet-100 dark:bg-violet-900/40 border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300 font-medium' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}>{label}</button>
+                  ))}
+                  <span className="text-slate-300 dark:text-slate-600">|</span>
+                  {[['ALL', '全方向'], ['SELL', 'Short'], ['BUY', 'Long']].map(([val, label]) => (
+                    <button key={val} onClick={() => setFilterDir(val)} className={`px-2.5 py-1 rounded-full border transition-colors ${filterDir === val ? 'bg-rose-100 dark:bg-rose-900/40 border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-300 font-medium' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}>{label}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Short Put risk panel */}
             {activeTab === 'portfolio' && (() => {
               const shortPuts = positions.filter(p => p.type === 'PUT' && p.direction === 'SELL' && p.status !== 'CLOSED' && !isExpiredByTwoDays(p.expiration));
@@ -294,18 +327,98 @@ export default function App() {
                       <div className="font-mono font-bold text-amber-600 dark:text-amber-400">${requiredNAV.toLocaleString()}</div>
                     </div>
                   </div>
-                  {isRiskExpanded && (
-                    <div className="border-t border-amber-200 dark:border-amber-800">
-                      {shortPuts.map(p => {
-                        const ct = parseInt(p.contracts) || 1;
-                        const cost = (parseFloat(p.strike) || 0) * 100 * ct;
+                  {isRiskExpanded && (() => {
+                    const tickerGroups = shortPuts.reduce((acc, p) => {
+                      const t = p.ticker || '未知';
+                      acc[t] = (acc[t] || 0) + (parseFloat(p.strike) || 0) * 100 * (parseInt(p.contracts) || 1);
+                      return acc;
+                    }, {});
+                    const sortedTickers = Object.entries(tickerGroups).sort((a, b) => b[1] - a[1]);
+                    return (
+                      <div className="border-t border-amber-200 dark:border-amber-800">
+                        {/* Ticker concentration */}
+                        <div className="px-4 pt-3 pb-2">
+                          <div className="text-xs font-bold text-slate-400 uppercase mb-2">单股集中度</div>
+                          {sortedTickers.map(([ticker, cost]) => {
+                            const pct = total > 0 ? (cost / total * 100) : 0;
+                            const isConcentrated = pct > 50;
+                            return (
+                              <div key={ticker} className="mb-1.5">
+                                <div className="flex items-center justify-between text-xs mb-0.5">
+                                  <div className="flex items-center gap-1.5">
+                                    {isConcentrated && <AlertTriangle size={10} className="text-red-500" />}
+                                    <span className={`font-medium ${isConcentrated ? 'text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-300'}`}>{ticker}</span>
+                                  </div>
+                                  <span className={`font-mono ${isConcentrated ? 'text-red-600 dark:text-red-400 font-bold' : 'text-slate-500'}`}>${cost.toLocaleString()} · {pct.toFixed(0)}%</span>
+                                </div>
+                                <div className="h-1.5 bg-amber-100 dark:bg-amber-900/30 rounded-full overflow-hidden">
+                                  <div className={`h-full rounded-full ${isConcentrated ? 'bg-red-400' : 'bg-amber-400'}`} style={{ width: `${pct}%` }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {/* Individual positions */}
+                        <div className="border-t border-amber-100 dark:border-amber-800/40">
+                          {shortPuts.map(p => {
+                            const ct = parseInt(p.contracts) || 1;
+                            const cost = (parseFloat(p.strike) || 0) * 100 * ct;
+                            return (
+                              <div key={p.id} className="flex items-center justify-between px-4 py-2 text-sm border-b border-amber-100 dark:border-amber-800/40 last:border-b-0">
+                                <div className="flex items-center gap-3">
+                                  <span className="font-semibold text-slate-700 dark:text-slate-200 w-16">{p.ticker}</span>
+                                  <span className="text-slate-500 dark:text-slate-400">${parseFloat(p.strike).toFixed(0)} 行权 × {ct} 张</span>
+                                </div>
+                                <span className="font-mono text-slate-600 dark:text-slate-300">${cost.toLocaleString()}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              );
+            })()}
+
+            {/* Realized P&L Summary */}
+            {activeTab === 'portfolio' && (() => {
+              const closedPositions = positions.filter(p => p.status === 'CLOSED' || isExpiredByTwoDays(p.expiration));
+              if (closedPositions.length === 0) return null;
+              const totalPnL = closedPositions.reduce((sum, p) => sum + (calculateFinalPnL(p) || 0), 0);
+              const isPositive = totalPnL >= 0;
+              const colorCls = isPositive
+                ? { bg: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-200 dark:border-emerald-800', hover: 'hover:bg-emerald-100/50 dark:hover:bg-emerald-900/30', icon: 'text-emerald-500', title: 'text-emerald-800 dark:text-emerald-200', badge: 'text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-800/50', total: 'text-emerald-700 dark:text-emerald-300', divider: 'divide-emerald-100 dark:divide-emerald-800/40', chevron: 'text-emerald-500' }
+                : { bg: 'bg-rose-50 dark:bg-rose-900/20', border: 'border-rose-200 dark:border-rose-800', hover: 'hover:bg-rose-100/50 dark:hover:bg-rose-900/30', icon: 'text-rose-500', title: 'text-rose-800 dark:text-rose-200', badge: 'text-rose-600 dark:text-rose-400 bg-rose-100 dark:bg-rose-800/50', total: 'text-rose-700 dark:text-rose-300', divider: 'divide-rose-100 dark:divide-rose-800/40', chevron: 'text-rose-500' };
+              return (
+                <div className={`${colorCls.bg} border ${colorCls.border} rounded-xl mb-4 overflow-hidden`}>
+                  <button onClick={() => setIsRealizedExpanded(v => !v)} className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${colorCls.hover}`}>
+                    <div className="flex items-center gap-2">
+                      <BarChart2 size={16} className={colorCls.icon} />
+                      <span className={`font-semibold text-sm ${colorCls.title}`}>已实现盈亏</span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${colorCls.badge}`}>{closedPositions.length} 个</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`font-mono font-bold ${colorCls.total}`}>{isPositive ? '+' : '-'}${Math.abs(totalPnL).toFixed(2)}</span>
+                      <ChevronUp size={15} className={`${colorCls.chevron} transition-transform ${isRealizedExpanded ? '' : 'rotate-180'}`} />
+                    </div>
+                  </button>
+                  {isRealizedExpanded && (
+                    <div className={`border-t ${colorCls.border} divide-y ${colorCls.divider}`}>
+                      {closedPositions.map(p => {
+                        const pnl = calculateFinalPnL(p) || 0;
+                        const isPos = pnl >= 0;
+                        const isExpired = p.status !== 'CLOSED' && isExpiredByTwoDays(p.expiration);
                         return (
-                          <div key={p.id} className="flex items-center justify-between px-4 py-2 text-sm border-b border-amber-100 dark:border-amber-800/40 last:border-b-0">
+                          <div key={p.id} className="flex items-center justify-between px-4 py-2 text-sm">
                             <div className="flex items-center gap-3">
                               <span className="font-semibold text-slate-700 dark:text-slate-200 w-16">{p.ticker}</span>
-                              <span className="text-slate-500 dark:text-slate-400">${parseFloat(p.strike).toFixed(0)} 行权 × {ct} 张</span>
+                              <span className="text-slate-500 dark:text-slate-400">${parseFloat(p.strike).toFixed(0)} {p.type} {p.expiration}</span>
+                              {isExpired && <span className="text-[10px] px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded">过期</span>}
                             </div>
-                            <span className="font-mono text-slate-600 dark:text-slate-300">${cost.toLocaleString()}</span>
+                            <span className={`font-mono font-semibold ${isPos ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                              {isPos ? '+' : '-'}${Math.abs(pnl).toFixed(2)}
+                            </span>
                           </div>
                         );
                       })}
@@ -325,10 +438,22 @@ export default function App() {
 
             {/* Position list */}
             <div className="grid gap-4">
-              {(activeTab === 'portfolio' ? positions : plans).length === 0 && (
-                <div className="text-center py-12 text-slate-400 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700"><p>暂无记录</p></div>
-              )}
-              {(activeTab === 'portfolio' ? positions : plans).sort((a, b) => {
+              {(() => {
+                const baseList = activeTab === 'portfolio'
+                  ? positions.filter(p => {
+                      if (searchTicker && !p.ticker?.toUpperCase().includes(searchTicker)) return false;
+                      if (filterStatus !== 'ALL') {
+                        const isClosed = p.status === 'CLOSED' || isExpiredByTwoDays(p.expiration);
+                        if (filterStatus === 'OPEN' && isClosed) return false;
+                        if (filterStatus === 'CLOSED' && !isClosed) return false;
+                      }
+                      if (filterType !== 'ALL' && p.type !== filterType) return false;
+                      if (filterDir !== 'ALL' && p.direction !== filterDir) return false;
+                      return true;
+                    })
+                  : plans;
+                if (baseList.length === 0) return <div className="text-center py-12 text-slate-400 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700"><p>{searchTicker || filterStatus !== 'ALL' || filterType !== 'ALL' || filterDir !== 'ALL' ? '没有符合筛选条件的记录' : '暂无记录'}</p></div>;
+                return baseList.sort((a, b) => {
                 if (activeTab !== 'portfolio') return (b.actionDate || '').localeCompare(a.actionDate || '');
                 const dir = sortConfig.direction === 'asc' ? 1 : -1;
                 if (sortConfig.key === 'ticker') return (a.ticker || '').localeCompare(b.ticker || '') * dir;
@@ -344,7 +469,8 @@ export default function App() {
                   onExecute={() => setExecutionPlan(item)}
                   onDirectAction={handleDirectAction}
                 />
-              ))}
+              ));
+              })()}
             </div>
           </>
         )}

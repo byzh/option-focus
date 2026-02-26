@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcNetBasis, calcFinalPnL } from './calc';
+import { calcNetBasis, calcFinalPnL, calcBreakEven } from './calc';
 
 // ─── calcNetBasis ────────────────────────────────────────────────────────────
 // Formula: (entryPrice + rollCredit) × 100 × contracts
@@ -127,5 +127,28 @@ describe('regression: rollCredit must be treated as per-share (×100)', () => {
     // Correct:        (1.60-0.50)*100*2 = 220
     expect(basis).toBeCloseTo(220);
     expect(basis).not.toBeCloseTo(319.50);
+  });
+});
+
+// ─── calcBreakEven ────────────────────────────────────────────────────────────
+// PUT:  strike - entryPrice - rollCredit
+// CALL: strike + entryPrice + rollCredit
+
+describe('calcBreakEven', () => {
+  it('short put, no roll: strike=50, entry=2.50 → 47.50', () => {
+    expect(calcBreakEven('PUT', 50, 2.50, 0)).toBeCloseTo(47.50);
+  });
+
+  it('short put with roll credit: strike=50, entry=2.50, rollCredit=-0.50 → 47.00', () => {
+    // received additional $0.50 credit on roll, so breakEven improves
+    expect(calcBreakEven('PUT', 50, 2.50, -0.50)).toBeCloseTo(47.00);
+  });
+
+  it('short call, no roll: strike=150, entry=3.00 → 153.00', () => {
+    expect(calcBreakEven('CALL', 150, 3.00, 0)).toBeCloseTo(153.00);
+  });
+
+  it('long put, no roll: strike=50, entry=2.50 → 47.50', () => {
+    expect(calcBreakEven('PUT', 50, 2.50, 0)).toBeCloseTo(47.50);
   });
 });
