@@ -52,16 +52,16 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction }) {
 
     return (
       <Card className={`p-4 hover:shadow-md transition-shadow ${isClosed ? 'opacity-75 bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800' : isExpired ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30' : ''}`}>
-        <div className="flex justify-between items-start">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className={`px-2 py-0.5 text-xs font-bold rounded ${item.direction === 'BUY' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'}`}>{item.direction === 'BUY' ? 'LONG' : 'SHORT'}</span>
-              <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">{item.ticker}</h3>
-              <span className="text-sm text-slate-500 dark:text-slate-400">{item.expiration} ${item.strike} {item.type}</span>
-              {isClosed && <span className="bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1"><Archive size={10} /> 已平仓</span>}
-              {isExpired && !isClosed && <span className="bg-red-100 text-red-600 text-xs px-2 rounded-full font-bold flex items-center gap-1"><AlertTriangle size={10} /> 已过期</span>}
+        <div className="flex justify-between items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
+              <span className={`px-2 py-0.5 text-xs font-bold rounded shrink-0 ${item.direction === 'BUY' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'}`}>{item.direction === 'BUY' ? 'LONG' : 'SHORT'}</span>
+              <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 shrink-0">{item.ticker}</h3>
+              <span className="text-sm text-slate-500 dark:text-slate-400 shrink-0">{item.expiration} ${item.strike} {item.type}</span>
+              {isClosed && <span className="bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shrink-0"><Archive size={10} /> 已平仓</span>}
+              {isExpired && !isClosed && <span className="bg-red-100 text-red-600 text-xs px-2 rounded-full font-bold flex items-center gap-1 shrink-0"><AlertTriangle size={10} /> 已过期</span>}
               {daysUntilExpiration !== null && (
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 ${isExpiringSoon ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'}`}>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shrink-0 ${isExpiringSoon ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'}`}>
                   {isExpiringSoon && <AlertTriangle size={10} />} 还剩 {daysUntilExpiration} 天
                 </span>
               )}
