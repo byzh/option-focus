@@ -84,17 +84,19 @@ export default function App() {
 
     return Object.entries(grouped).map(([ticker, items]) => {
       const itemCount = items.length;
-      const totalContracts = items.reduce((sum, p) => sum + (parseInt(p.contracts) || 1), 0);
-      const totalCost = items.reduce((sum, p) => sum + calcNetBasis(p.entryPrice, p.rollCredit, p.contracts), 0);
+      // Only count active (not closed/expired) positions for totalContracts
+      const activeItems = items.filter(p => p.status !== 'CLOSED' && !isExpiredByTwoDays(p.expiration));
+      const totalContracts = activeItems.reduce((sum, p) => sum + (parseInt(p.contracts) || 1), 0);
+      const totalCost = activeItems.reduce((sum, p) => sum + calcNetBasis(p.entryPrice, p.rollCredit, p.contracts), 0);
       const avgCost = totalCost > 0 ? totalCost / totalContracts : 0;
-      const earliestDTE = Math.min(...items.map(p => {
+      const earliestDTE = activeItems.length > 0 ? Math.min(...activeItems.map(p => {
         if (!p.expiration) return Infinity;
         const exp = new Date(p.expiration);
         const now = new Date();
         exp.setHours(0, 0, 0, 0);
         now.setHours(0, 0, 0, 0);
         return Math.ceil((exp - now) / 86400000);
-      }));
+      })) : Infinity;
       return { ticker, items, itemCount, totalContracts, totalCost, avgCost, earliestDTE };
     });
   };
