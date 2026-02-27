@@ -8,7 +8,7 @@ import { isExpiredByTwoDays } from '../utils/dateUtils';
 import Card from './ui/Card';
 import Button from './ui/Button';
 
-function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction }) {
+function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, concentration = 0 }) {
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
 
   if (type === 'portfolio') {
@@ -63,6 +63,11 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction }) {
               {daysUntilExpiration !== null && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shrink-0 ${isExpiringSoon ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'}`}>
                   {isExpiringSoon && <AlertTriangle size={10} />} 还剩 {daysUntilExpiration} 天
+                </span>
+              )}
+              {concentration > 50 && item.type === 'PUT' && item.direction === 'SELL' && (
+                <span className="bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shrink-0">
+                  <AlertTriangle size={10} /> 集中 {concentration.toFixed(0)}%
                 </span>
               )}
             </div>

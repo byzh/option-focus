@@ -54,6 +54,8 @@ export default function App() {
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [filterType, setFilterType] = useState('ALL');
   const [filterDir, setFilterDir] = useState('ALL');
+  const [showAggregated, setShowAggregated] = useState(false);
+  const [expandedTickers, setExpandedTickers] = useState(new Set());
   const [formData, setFormData] = useState(EMPTY_FORM());
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState(null);
@@ -61,6 +63,39 @@ export default function App() {
   const handleSort = (key) => setSortConfig(prev =>
     prev.key === key ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' }
   );
+
+  // Calculate single-stock concentration
+  const getTickerConcentration = (ticker) => {
+    const shortPuts = positions.filter(p => p.type === 'PUT' && p.direction === 'SELL' && p.status !== 'CLOSED' && !isExpiredByTwoDays(p.expiration));
+    if (shortPuts.length === 0) return 0;
+    const total = shortPuts.reduce((sum, p) => sum + (parseFloat(p.strike) || 0) * 100 * (parseInt(p.contracts) || 1), 0);
+    const tickerCost = shortPuts.filter(p => p.ticker === ticker).reduce((sum, p) => sum + (parseFloat(p.strike) || 0) * 100 * (parseInt(p.contracts) || 1), 0);
+    return total > 0 ? (tickerCost / total) * 100 : 0;
+  };
+
+  // Aggregation helper
+  const aggregateByTicker = (positionList) => {
+    const grouped = {};
+    positionList.forEach(p => {
+      if (!grouped[p.ticker]) grouped[p.ticker] = [];
+      grouped[p.ticker].push(p);
+    });
+
+    return Object.entries(grouped).map(([ticker, items]) => {
+      const totalContracts = items.reduce((sum, p) => sum + (parseInt(p.contracts) || 1), 0);
+      const totalCost = items.reduce((sum, p) => sum + calcNetBasis(p.entryPrice, p.rollCredit, p.contracts), 0);
+      const avgCost = totalCost > 0 ? totalCost / totalContracts : 0;
+      const earliestDTE = Math.min(...items.map(p => {
+        if (!p.expiration) return Infinity;
+        const exp = new Date(p.expiration);
+        const now = new Date();
+        exp.setHours(0, 0, 0, 0);
+        now.setHours(0, 0, 0, 0);
+        return Math.ceil((exp - now) / 86400000);
+      }));
+      return { ticker, items, totalContracts, totalCost, avgCost, earliestDTE };
+    });
+  };
 
   // Auth
   useEffect(() => {
@@ -298,6 +333,11 @@ export default function App() {
                     <button key={val} onClick={() => setFilterDir(val)} className={`px-2.5 py-1 rounded-full border transition-colors ${filterDir === val ? 'bg-rose-100 dark:bg-rose-900/40 border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-300 font-medium' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}>{label}</button>
                   ))}
                 </div>
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <span className="text-xs text-slate-400 font-medium">视图:</span>
+                  <button onClick={() => setShowAggregated(false)} className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${!showAggregated ? 'bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-medium' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}>详细</button>
+                  <button onClick={() => setShowAggregated(true)} className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${showAggregated ? 'bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-medium' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}>按代码聚合</button>
+                </div>
               </div>
             )}
 
@@ -453,6 +493,42 @@ export default function App() {
                     })
                   : plans;
                 if (baseList.length === 0) return <div className="text-center py-12 text-slate-400 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700"><p>{searchTicker || filterStatus !== 'ALL' || filterType !== 'ALL' || filterDir !== 'ALL' ? '没有符合筛选条件的记录' : '暂无记录'}</p></div>;
+
+                if (showAggregated && activeTab === 'portfolio') {
+                  const aggregated = aggregateByTicker(baseList).sort((a, b) => b.totalCost - a.totalCost);
+                  return aggregated.map(agg => (
+                    <div key={agg.ticker}>
+                      <button onClick={() => setExpandedTickers(prev => new Set(prev.has(agg.ticker) ? [...prev].filter(t => t !== agg.ticker) : [...prev, agg.ticker]))} className="w-full text-left p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-3">
+                            <ChevronUp size={14} className={`text-slate-400 transition-transform ${expandedTickers.has(agg.ticker) ? '' : 'rotate-180'}`} />
+                            <span className="font-bold text-lg text-slate-800 dark:text-white">{agg.ticker}</span>
+                            <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full">{agg.totalContracts} 张</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs text-slate-400">平均成本</div>
+                            <div className="font-mono font-bold text-slate-700 dark:text-slate-300">${agg.avgCost.toFixed(2)}</div>
+                          </div>
+                        </div>
+                        <div className="flex justify-between text-xs text-slate-500">
+                          <span>累计成本: ${agg.totalCost.toFixed(0)}</span>
+                          <span>{agg.earliestDTE > 0 ? `还剩 ${agg.earliestDTE} 天` : '已过期'}</span>
+                        </div>
+                      </button>
+                      {expandedTickers.has(agg.ticker) && (
+                        <div className="mt-2 space-y-2 pl-2 border-l-2 border-slate-200 dark:border-slate-700">
+                          {agg.items.sort((a, b) => (b.expiration || '').localeCompare(a.expiration || '')).map(item => {
+                            const concentration = item.type === 'PUT' && item.direction === 'SELL' ? getTickerConcentration(item.ticker) : 0;
+                            return (
+                              <ItemCard key={item.id} item={item} type={activeTab} onEdit={openEdit} onDelete={deleteItem} onExecute={() => setExecutionPlan(item)} onDirectAction={handleDirectAction} concentration={concentration} />
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ));
+                }
+
                 return baseList.sort((a, b) => {
                 if (activeTab !== 'portfolio') return (b.actionDate || '').localeCompare(a.actionDate || '');
                 const dir = sortConfig.direction === 'asc' ? 1 : -1;
@@ -463,13 +539,17 @@ export default function App() {
                   return (getDays(a) - getDays(b)) * dir;
                 }
                 return (b.dateOpened || '').localeCompare(a.dateOpened || '') * dir;
-              }).map(item => (
-                <ItemCard
-                  key={item.id} item={item} type={activeTab} onEdit={openEdit} onDelete={deleteItem}
-                  onExecute={() => setExecutionPlan(item)}
-                  onDirectAction={handleDirectAction}
-                />
-              ));
+              }).map(item => {
+                const concentration = item.type === 'PUT' && item.direction === 'SELL' ? getTickerConcentration(item.ticker) : 0;
+                return (
+                  <ItemCard
+                    key={item.id} item={item} type={activeTab} onEdit={openEdit} onDelete={deleteItem}
+                    onExecute={() => setExecutionPlan(item)}
+                    onDirectAction={handleDirectAction}
+                    concentration={concentration}
+                  />
+                );
+              });
               })()}
             </div>
           </>
