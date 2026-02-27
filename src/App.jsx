@@ -45,6 +45,7 @@ export default function App() {
   const [executionPlan, setExecutionPlan] = useState(null);
   const [isMigrating, setIsMigrating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isExecuting, setIsExecuting] = useState(false);
   const [messageModal, setMessageModal] = useState({ isOpen: false, title: '', content: '', type: 'info' });
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', content: '', onConfirm: () => {} });
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
@@ -206,9 +207,11 @@ export default function App() {
 
   const handleExecutionConfirm = async (plan, execData) => {
     const today = getLocalTodayString();
+    setIsExecuting(true);
     try {
       if (plan.actionCategory === 'OPEN') {
         await addDoc(collection(db, 'artifacts', APP_ID, 'users', user.uid, 'positions'), { status: 'OPEN', ticker: plan.ticker, type: plan.type, direction: plan.direction, strike: parseFloat(execData.strike), expiration: execData.expiration, entryPrice: parseFloat(execData.price), rollCredit: 0, history: [], dateOpened: today });
+        setMessageModal({ isOpen: true, title: '开仓成功', content: `已记录 ${plan.ticker} ${plan.type} ${plan.direction === 'BUY' ? '买入' : '卖出'}。`, type: 'info' });
       } else if (plan.actionCategory === 'CLOSE') {
         const pos = positions.find(p => p.id === plan.selectedPositionId);
         if (pos) {
@@ -223,13 +226,14 @@ export default function App() {
           const rollInputPrice = parseFloat(execData.price) || 0;
           const basisAdj = pos.direction === 'SELL' ? -1 * rollInputPrice : rollInputPrice;
           await updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', pos.id), { strike: parseFloat(execData.strike), expiration: execData.expiration, rollCredit: (parseFloat(pos.rollCredit) || 0) + basisAdj, history: [{ date: today, action: 'ROLL', oldStrike: pos.strike, oldExpiration: pos.expiration, rollPrice: rollInputPrice, snapshotEntryPrice: pos.entryPrice, newStrike: parseFloat(execData.strike), newExpiration: execData.expiration }, ...(pos.history || [])] });
+          setMessageModal({ isOpen: true, title: '展期成功', content: `已展期 ${pos.ticker} 至 ${execData.expiration} $${parseFloat(execData.strike)}。`, type: 'info' });
         }
       }
       if (!plan.isDirect && plan.id) await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'plans', plan.id));
       setExecutionPlan(null);
     } catch (e) {
       setMessageModal({ isOpen: true, title: '执行失败', content: `❌ 交易执行出错。\n错误信息: ${e.message}`, type: 'error' });
-    }
+    } finally { setIsExecuting(false); }
   };
 
   const openEdit = (item) => { setFormData({ ...item, id: item.id }); setShowAddModal(true); };
@@ -558,7 +562,7 @@ export default function App() {
       </main>
 
       {showAddModal && <AddEditModal formData={formData} setFormData={setFormData} onSubmit={handleSubmit} onClose={closeModal} activeTab={activeTab} positions={positions} onSelectPos={handlePositionSelect} isSaving={isSaving} />}
-      {executionPlan && <ExecutionModal plan={executionPlan} onClose={() => setExecutionPlan(null)} onConfirm={handleExecutionConfirm} />}
+      {executionPlan && <ExecutionModal plan={executionPlan} onClose={() => setExecutionPlan(null)} onConfirm={handleExecutionConfirm} isLoading={isExecuting} />}
       <MessageModal isOpen={messageModal.isOpen} title={messageModal.title} content={messageModal.content} type={messageModal.type} onClose={() => setMessageModal({ ...messageModal, isOpen: false })} />
       <ConfirmModal isOpen={confirmModal.isOpen} title={confirmModal.title} content={confirmModal.content} loading={isMigrating} onConfirm={confirmModal.onConfirm} onCancel={() => setConfirmModal({ ...confirmModal, isOpen: false })} />
     </div>

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { CheckSquare, HelpCircle, AlertCircle } from 'lucide-react';
+import { CheckSquare, HelpCircle, AlertCircle, Loader2 } from 'lucide-react';
 import Card from './ui/Card';
 import Button from './ui/Button';
 import Input from './ui/Input';
 
-const ExecutionModal = ({ plan, onClose, onConfirm }) => {
+const ExecutionModal = ({ plan, onClose, onConfirm, isLoading = false }) => {
   const [execData, setExecData] = useState({
     price: '',
     strike: plan.newStrike || plan.strike,
@@ -102,8 +102,10 @@ const ExecutionModal = ({ plan, onClose, onConfirm }) => {
           </div>
 
           <div className="flex gap-3 mt-6">
-            <Button variant="secondary" onClick={onClose} className="flex-1">取消</Button>
-            <Button variant="success" onClick={handleConfirm} className="flex-1">确认并执行</Button>
+            <Button variant="secondary" onClick={onClose} className="flex-1" disabled={isLoading}>取消</Button>
+            <Button variant="success" onClick={handleConfirm} className="flex-1" disabled={isLoading}>
+              {isLoading ? <Loader2 size={16} className="animate-spin" /> : '确认并执行'}
+            </Button>
           </div>
         </div>
       </Card>
