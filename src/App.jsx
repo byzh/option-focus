@@ -84,11 +84,11 @@ export default function App() {
 
     return Object.entries(grouped).map(([ticker, items]) => {
       const itemCount = items.length;
-      // Only count active (not closed/expired) positions for totalContracts
-      const activeItems = items.filter(p => p.status !== 'CLOSED' && !isExpiredByTwoDays(p.expiration));
-      const totalContracts = activeItems.reduce((sum, p) => sum + (parseInt(p.contracts) || 1), 0);
-      const totalCost = activeItems.reduce((sum, p) => sum + calcNetBasis(p.entryPrice, p.rollCredit, p.contracts), 0);
+      // Count all positions (active, closed, and expired) for totalContracts
+      const totalContracts = items.reduce((sum, p) => sum + (parseInt(p.contracts) || 1), 0);
+      const totalCost = items.reduce((sum, p) => sum + calcNetBasis(p.entryPrice, p.rollCredit, p.contracts), 0);
       const avgCost = totalCost > 0 ? totalCost / totalContracts : 0;
+      const activeItems = items.filter(p => p.status !== 'CLOSED' && !isExpiredByTwoDays(p.expiration));
       const earliestDTE = activeItems.length > 0 ? Math.min(...activeItems.map(p => {
         if (!p.expiration) return Infinity;
         const exp = new Date(p.expiration);
