@@ -176,6 +176,9 @@ export default function App() {
         : addDoc(collection(db, 'artifacts', APP_ID, 'users', user.uid, colName), newItem);
       await Promise.race([op, timeout]);
       closeModal();
+      const action = formData.id ? '更新' : '创建';
+      const category = activeTab === 'portfolio' ? '持仓' : '备忘';
+      setMessageModal({ isOpen: true, title: '保存成功', content: `✅ ${action}${category}成功。`, type: 'info' });
     } catch (e) {
       setMessageModal({ isOpen: true, title: '保存失败 (Save Failed)', content: `❌ 操作超时或失败。\n错误信息: ${e.message}`, type: 'error' });
     } finally { setIsSaving(false); }
@@ -188,6 +191,8 @@ export default function App() {
         try {
           await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, listType === 'portfolio' ? 'positions' : 'plans', id));
           setConfirmModal({ isOpen: false, title: '', content: '', onConfirm: () => {} });
+          const itemType = listType === 'portfolio' ? '持仓' : '备忘';
+          setMessageModal({ isOpen: true, title: '删除成功', content: `✅ ${itemType}已删除。`, type: 'info' });
         } catch (e) {
           setConfirmModal({ isOpen: false, title: '', content: '', onConfirm: () => {} });
           setMessageModal({ isOpen: true, title: '删除失败', content: `❌ 错误信息: ${e.message}`, type: 'error' });
