@@ -130,15 +130,25 @@ export default function App() {
   // Auto-close expired positions
   useEffect(() => {
     if (!user || !db || positions.length === 0) return;
-    const expiredPositions = positions.filter(p => p.status !== 'CLOSED' && isExpired(p.expiration));
+    const expiredPositions = positions.filter(p => isExpired(p.expiration));
     expiredPositions.forEach(p => {
       const today = getLocalTodayString();
-      updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', p.id), {
-        status: 'CLOSED',
-        closePrice: 0,
-        dateClosed: today,
-        history: [{ date: today, action: 'AUTO_EXPIRE', closePrice: 0, notes: '自动过期' }, ...(p.history || [])]
-      }).catch(e => console.error('Failed to auto-close expired position:', e));
+      const hasAutoExpireRecord = (p.history || []).some(h => h.action === 'AUTO_EXPIRE');
+
+      if (p.status !== 'CLOSED') {
+        // Open expired position - auto-close it
+        updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', p.id), {
+          status: 'CLOSED',
+          closePrice: 0,
+          dateClosed: today,
+          history: [{ date: today, action: 'AUTO_EXPIRE', closePrice: 0, notes: '自动过期' }, ...(p.history || [])]
+        }).catch(e => console.error('Failed to auto-close expired position:', e));
+      } else if (!hasAutoExpireRecord) {
+        // Already closed but missing auto-expire record - add it
+        updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', p.id), {
+          history: [{ date: p.dateClosed || today, action: 'AUTO_EXPIRE', closePrice: 0, notes: '自动过期' }, ...(p.history || [])]
+        }).catch(e => console.error('Failed to add auto-expire record:', e));
+      }
     });
   }, [positions, user, db]);
 
