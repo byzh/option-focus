@@ -113,8 +113,11 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, con
               } else if (h.action === 'CLOSE') {
                 label = '平仓 (Close)';
                 val = item.direction === 'SELL' ? Math.abs(h.closePrice) : -Math.abs(h.closePrice); isCredit = val < 0;
+              } else if (h.action === 'AUTO_EXPIRE') {
+                label = '自动过期 (Auto Expired)';
+                val = 0; isCredit = false;
               } else if (h.action === 'ROLL') {
-                label = `Roll to ${h.newExpiration} $${h.newStrike}`;
+                label = `展期 (Roll) to ${h.newExpiration} $${h.newStrike}`;
                 val = h.rollPrice; isCredit = val < 0;
               }
               return (
