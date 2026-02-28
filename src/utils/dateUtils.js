@@ -16,3 +16,12 @@ export const isExpiredByTwoDays = (expirationDate) => {
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   return diffDays > 2;
 };
+
+export const isExpired = (expirationDate) => {
+  if (!expirationDate) return false;
+  const exp = new Date(expirationDate);
+  const now = new Date();
+  exp.setHours(0, 0, 0, 0);
+  now.setHours(0, 0, 0, 0);
+  return now >= exp;
+};

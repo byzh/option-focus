@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 
 import { app, auth, db, initError, APP_ID } from './firebase/firebaseInit';
-import { getLocalTodayString, isExpiredByTwoDays } from './utils/dateUtils';
+import { getLocalTodayString, isExpiredByTwoDays, isExpired } from './utils/dateUtils';
 
 import Card from './components/ui/Card';
 import Button from './components/ui/Button';
@@ -130,7 +130,7 @@ export default function App() {
   // Auto-close expired positions
   useEffect(() => {
     if (!user || !db || positions.length === 0) return;
-    const expiredPositions = positions.filter(p => p.status !== 'CLOSED' && isExpiredByTwoDays(p.expiration));
+    const expiredPositions = positions.filter(p => p.status !== 'CLOSED' && isExpired(p.expiration));
     expiredPositions.forEach(p => {
       updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', p.id), {
         status: 'CLOSED',
