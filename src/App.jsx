@@ -127,6 +127,19 @@ export default function App() {
     return () => { unsubPos(); unsubPlans(); };
   }, [user]);
 
+  // Auto-close expired positions
+  useEffect(() => {
+    if (!user || !db || positions.length === 0) return;
+    const expiredPositions = positions.filter(p => p.status !== 'CLOSED' && isExpiredByTwoDays(p.expiration));
+    expiredPositions.forEach(p => {
+      updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', p.id), {
+        status: 'CLOSED',
+        closePrice: 0,
+        dateClosed: getLocalTodayString()
+      }).catch(e => console.error('Failed to auto-close expired position:', e));
+    });
+  }, [positions, user, db]);
+
   // Migration
   const checkMigrationEligibility = () => {
     if (!user) { setMessageModal({ isOpen: true, title: '未连接', content: "⚠️ 尚未连接到云端，请等待右上角显示'云端已连接'后再试。", type: 'error' }); return; }
