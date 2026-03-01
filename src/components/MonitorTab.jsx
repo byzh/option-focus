@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Wifi, WifiOff, Loader2, AlertTriangle, ChevronUp, Clock, User, BarChart2 } from 'lucide-react';
+import { Wifi, WifiOff, Loader2, AlertTriangle, ChevronUp, Clock, User, BarChart2, BookOpen, ExternalLink, RefreshCw } from 'lucide-react';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import Card from './ui/Card';
 import Button from './ui/Button';
@@ -9,29 +9,44 @@ const APP_ID = 'option-focus-v2';
 const TASTYTRADE_API = 'https://api.tastytrade.com';
 
 // Pure helpers (no React hooks)
+const getMinutesUntilExpiry = (iso) => {
+  if (!iso) return -1;
+  return (new Date(iso) - new Date()) / 60000;
+};
+
 const getHoursUntilExpiry = (iso) => {
   if (!iso) return -1;
   return (new Date(iso) - new Date()) / 3600000;
 };
 
-const isTokenValid = (iso) => {
-  return getHoursUntilExpiry(iso) > (5 / 60); // 5 min buffer
+const isAccessTokenValid = (iso) => {
+  return getMinutesUntilExpiry(iso) > 5; // 5 min buffer
 };
 
-const formatExpiry = (iso) => {
-  const h = getHoursUntilExpiry(iso);
-  if (h < 0) return 'Token 已过期';
-  if (h < 1) return `Token 将在 ${Math.round(h * 60)} 分钟后过期`;
-  return `Token 将在 ${h.toFixed(1)} 小时后过期`;
+const formatExpiry = (iso, isOAuth = false) => {
+  if (isOAuth) {
+    const m = getMinutesUntilExpiry(iso);
+    if (m < 0) return 'Token 已过期';
+    if (m < 1) return `Token 将在 ${Math.round(m * 60)} 秒后过期`;
+    return `Token 将在 ${Math.round(m)} 分钟后过期`;
+  } else {
+    const h = getHoursUntilExpiry(iso);
+    if (h < 0) return 'Token 已过期';
+    if (h < 1) return `Token 将在 ${Math.round(h * 60)} 分钟后过期`;
+    return `Token 将在 ${h.toFixed(1)} 小时后过期`;
+  }
 };
 
 function MonitorTab({ user, db }) {
   // Connection lifecycle state
   const [status, setStatus] = useState('idle'); // idle | loading | connected | error
 
-  // Form inputs
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  // Form inputs (OAuth mode)
+  const [clientId, setClientId] = useState('');
+  const [refreshToken, setRefreshToken] = useState('');
+
+  // OAuth setup guide state
+  const [isGuideExpanded, setIsGuideExpanded] = useState(true);
 
   // Session data from Firestore or API
   const [sessionData, setSessionData] = useState(null);
@@ -64,15 +79,34 @@ function MonitorTab({ user, db }) {
 
         if (snap.exists()) {
           const data = snap.data();
-          if (data.sessionToken && isTokenValid(data.sessionExpiration)) {
-            // Token is still valid
+
+          // Demo mode: check session token validity
+          if (data.isDemoMode && isAccessTokenValid(data.sessionExpiration || data.accessTokenExpiry)) {
             setSessionData(data);
             setStatus('connected');
-          } else if (data.sessionToken) {
-            // Token exists but expired — clean it up
-            await deleteDoc(ref);
-            setStatus('idle');
+            setIsLoadingCache(false);
+            return;
           }
+
+          // OAuth mode: check access token validity
+          if (data.refreshToken && data.clientId) {
+            if (data.accessToken && isAccessTokenValid(data.accessTokenExpiry)) {
+              // Access token still valid
+              setSessionData(data);
+              setStatus('connected');
+              setIsLoadingCache(false);
+              return;
+            } else {
+              // Access token expired or missing — refresh it
+              await refreshAccessToken(data, ref);
+              setIsLoadingCache(false);
+              return;
+            }
+          }
+
+          // Cleanup: data exists but is invalid
+          await deleteDoc(ref);
+          setStatus('idle');
         } else {
           setStatus('idle');
         }
@@ -87,10 +121,47 @@ function MonitorTab({ user, db }) {
     loadCachedToken();
   }, [user, db]);
 
+  // Refresh access token using refresh token
+  const refreshAccessToken = async (storedData, firestoreRef) => {
+    try {
+      const res = await fetch(TASTYTRADE_API + '/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'refresh_token',
+          refresh_token: storedData.refreshToken,
+          client_id: storedData.clientId,
+        }),
+      });
+
+      if (!res.ok) throw new Error(`Token refresh failed: ${res.status}`);
+
+      const data = await res.json();
+      const expiry = new Date(Date.now() + data.expires_in * 1000).toISOString();
+
+      const updated = {
+        ...storedData,
+        accessToken: data.access_token,
+        accessTokenExpiry: expiry,
+      };
+
+      await setDoc(firestoreRef, updated, { merge: true });
+      setSessionData(updated);
+      setStatus('connected');
+    } catch (e) {
+      console.error('Token refresh failed:', e);
+      setStatus('idle'); // Fall back to showing the form
+      setError({
+        type: 'cors',
+        message: `OAuth token 刷新失败: ${e.message}。请重新连接。`,
+      });
+    }
+  };
+
   // Handle connection
   const handleConnect = async (e) => {
     e.preventDefault();
-    if (!username.trim() || !password.trim()) return;
+    if (!clientId.trim() || !refreshToken.trim()) return;
 
     setStatus('loading');
     setError(null);
@@ -106,7 +177,7 @@ function MonitorTab({ user, db }) {
       const newSessionData = {
         sessionToken: `demo_token_${Date.now()}`,
         sessionExpiration: demoExpiration.toISOString(),
-        tastyUsername: username.trim(),
+        tastyUsername: '演示账户',
         cachedAt: Date.now(),
         isDemoMode: true,
       };
@@ -121,42 +192,35 @@ function MonitorTab({ user, db }) {
 
       setSessionData(newSessionData);
       setStatus('connected');
-      setPassword('');
+      setRefreshToken('');
       setRawResponse({ mode: 'demo', message: '演示模式 - 使用模拟数据' });
       return;
     }
 
-    // REAL API MODE: Call Tastytrade API
-    const body = {
-      login: username.trim(),
-      password: password,
-      'remember-me': true,
-    };
-
-    let response;
+    // OAUTH MODE: Exchange refresh_token for access_token, then fetch user info
+    // Step 1: POST /oauth/token
+    let oauthResponse;
     try {
-      response = await fetch(TASTYTRADE_API + '/sessions', {
+      oauthResponse = await fetch(TASTYTRADE_API + '/oauth/token', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken.trim(),
+          client_id: clientId.trim(),
+        }),
       });
     } catch (fetchError) {
-      // fetch() throws if request never reaches server (CORS, offline, etc)
       if (!navigator.onLine) {
         setError({
           type: 'network',
           message: '无网络连接，请检查网络后重试。',
         });
       } else {
-        // Almost certainly CORS
         setError({
           type: 'cors',
           message:
-            'API 请求被浏览器拦截（CORS 策略限制）。' +
-            'Tastytrade API 不允许直接从浏览器发起请求，' +
+            'OAuth token 请求被浏览器拦截（CORS 策略限制）。' +
             '后续版本将通过代理服务器解决此问题。',
         });
       }
@@ -164,74 +228,99 @@ function MonitorTab({ user, db }) {
       return;
     }
 
-    // Read response body
-    let responseData;
+    let oauthData;
     try {
-      responseData = await response.json();
+      oauthData = await oauthResponse.json();
     } catch {
-      responseData = null;
+      oauthData = null;
     }
 
-    setRawResponse(responseData);
+    setRawResponse(oauthData);
 
-    if (response.status === 201) {
-      // SUCCESS
-      const token = responseData?.data?.['session-token'];
-      const expiration = responseData?.data?.['session-expiration'];
-      const apiUsername = responseData?.data?.user?.username || username.trim();
-
-      if (!token) {
-        setError({
-          type: 'unknown',
-          message: 'API 返回成功，但响应中未找到 session-token。',
-        });
-        setStatus('error');
-        return;
-      }
-
-      const newSessionData = {
-        sessionToken: token,
-        sessionExpiration: expiration,
-        tastyUsername: apiUsername,
-        cachedAt: Date.now(),
-      };
-
-      // Persist to Firestore
-      try {
-        const ref = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'config', 'tastytrade');
-        await setDoc(ref, newSessionData, { merge: true });
-      } catch (firestoreError) {
-        console.error('Failed to cache token in Firestore:', firestoreError);
-        // Non-fatal: token is usable in-memory
-      }
-
-      setSessionData(newSessionData);
-      setStatus('connected');
-      setPassword(''); // Clear password immediately
-    } else if (response.status === 401) {
+    if (!oauthResponse.ok) {
+      const errorMsg = oauthData?.error_description || oauthData?.error || '未知错误';
       setError({
         type: 'auth',
-        message: '用户名或密码错误（401 Unauthorized）。请检查 Tastytrade 账户凭据。',
+        message: `OAuth token 获取失败 (${oauthResponse.status}): ${errorMsg}。请检查 Client ID 和 Refresh Token。`,
       });
       setStatus('error');
-    } else if (response.status === 403) {
-      // 403 could be CORS preflight rejection or API rate limit
-      const errorMsg = responseData?.error?.message || '请求被拒绝';
-      setError({
-        type: 'cors',
-        message: `API 返回 403 Forbidden: ${errorMsg}。这通常表示：\n1. CORS 策略限制\n2. API 账户权限不足\n3. 登录尝试过多被临时锁定\n\n请检查 Tastytrade 账户状态，或稍后重试。`,
-      });
-      setStatus('error');
-    } else {
-      setError({
-        type: 'unknown',
-        message: `API 返回非预期状态码 ${response.status}。响应: ${responseData?.error?.message || '无详情'}`,
-      });
-      setStatus('error');
+      return;
     }
 
-    // Log for debugging
-    console.log(`[Tastytrade API Response] Status: ${response.status}`, responseData);
+    if (!oauthData?.access_token || !oauthData?.expires_in) {
+      setError({
+        type: 'unknown',
+        message: 'OAuth 响应中缺少 access_token 或 expires_in。',
+      });
+      setStatus('error');
+      return;
+    }
+
+    // Step 2: GET /customers/me with access_token
+    const accessToken = oauthData.access_token;
+    const expiresIn = oauthData.expires_in; // in seconds (typically 900 = 15 minutes)
+    const accessTokenExpiry = new Date(Date.now() + expiresIn * 1000).toISOString();
+
+    let userResponse;
+    try {
+      userResponse = await fetch(TASTYTRADE_API + '/customers/me', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+        },
+      });
+    } catch (fetchError) {
+      setError({
+        type: 'cors',
+        message: '获取用户信息失败（CORS 或网络错误）。',
+      });
+      setStatus('error');
+      return;
+    }
+
+    let userData;
+    try {
+      userData = await userResponse.json();
+    } catch {
+      userData = null;
+    }
+
+    if (!userResponse.ok) {
+      const errorMsg = userData?.error || '未知错误';
+      setError({
+        type: 'auth',
+        message: `获取用户信息失败 (${userResponse.status}): ${errorMsg}`,
+      });
+      setStatus('error');
+      return;
+    }
+
+    const tastyUsername = userData?.data?.user?.username || 'Unknown';
+
+    // Step 3: Store in Firestore
+    const newSessionData = {
+      clientId: clientId.trim(),
+      refreshToken: refreshToken.trim(),
+      accessToken,
+      accessTokenExpiry,
+      tastyUsername,
+      cachedAt: Date.now(),
+    };
+
+    try {
+      const ref = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'config', 'tastytrade');
+      await setDoc(ref, newSessionData, { merge: true });
+    } catch (firestoreError) {
+      console.error('Failed to cache OAuth credentials in Firestore:', firestoreError);
+      // Non-fatal: token is usable in-memory
+    }
+
+    // Step 4: Update state
+    setSessionData(newSessionData);
+    setStatus('connected');
+    setRefreshToken(''); // Clear password field
+    setRawResponse({ success: true, access_token_expires_in: expiresIn, message: 'OAuth 连接成功' });
   };
 
   // Clear stored token
@@ -253,7 +342,8 @@ function MonitorTab({ user, db }) {
     setError(null);
     setRawResponse(null);
     setIsRawExpanded(false);
-    setPassword('');
+    setClientId('');
+    setRefreshToken('');
   };
 
   return (
@@ -319,22 +409,70 @@ function MonitorTab({ user, db }) {
         )}
 
         {/* Connection form (not connected) */}
-        {!isLoadingCache && status !== 'connected' && (
+        {!isLoadingCache && status !== 'connected' && !isDemoMode && (
           <form onSubmit={handleConnect} className="space-y-4">
+            {/* OAuth Setup Guide (Collapsible) */}
+            <div className="border border-blue-200 dark:border-blue-800 rounded-lg overflow-hidden bg-blue-50 dark:bg-blue-900/20">
+              <button
+                type="button"
+                onClick={() => setIsGuideExpanded(!isGuideExpanded)}
+                className="w-full flex items-center justify-between px-3 py-3 text-sm font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+              >
+                <span className="flex items-center gap-2">
+                  <BookOpen size={16} /> 🔑 如何获取 OAuth 凭据（一次性操作）
+                </span>
+                <ChevronUp
+                  size={16}
+                  className={`transition-transform ${
+                    isGuideExpanded ? '' : 'rotate-180'
+                  }`}
+                />
+              </button>
+
+              {isGuideExpanded && (
+                <div className="px-3 py-3 border-t border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300 space-y-2">
+                  <div>
+                    <p className="font-medium mb-1">步骤 1：访问 Tastytrade 开发者门户</p>
+                    <p className="ml-3">→ 打开 <a href="https://developer.tastytrade.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 underline hover:opacity-80">
+                      developer.tastytrade.com <ExternalLink size={12} />
+                    </a>，登录 Tastytrade 账号</p>
+                  </div>
+                  <div>
+                    <p className="font-medium mb-1">步骤 2：创建应用</p>
+                    <p className="ml-3">→ 点击 "Create Application"，填写应用名称<br/>
+                    → 设置 Scope: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">read</code>（不需要 trade）<br/>
+                    → Redirect URI 填写：<code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">http://localhost</code></p>
+                  </div>
+                  <div>
+                    <p className="font-medium mb-1">步骤 3：获取 Client ID</p>
+                    <p className="ml-3">→ 点击 "Save"，复制显示的 Client ID</p>
+                  </div>
+                  <div>
+                    <p className="font-medium mb-1">步骤 4：获取 Refresh Token</p>
+                    <p className="ml-3">→ 点击 "Create Grant"，复制显示的 Refresh Token</p>
+                  </div>
+                  <div>
+                    <p className="font-medium mb-1">步骤 5：填写下方表单</p>
+                    <p className="ml-3">→ 将以上两个值粘贴到下面的表单中并点击"连接"</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <Input
-              label="Tastytrade 用户名"
+              label="Client ID"
               type="text"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              placeholder="your@email.com"
+              value={clientId}
+              onChange={e => setClientId(e.target.value)}
+              placeholder="从 developer.tastytrade.com 复制"
               required
             />
             <Input
-              label="密码"
+              label="Refresh Token"
               type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
+              value={refreshToken}
+              onChange={e => setRefreshToken(e.target.value)}
+              placeholder="从 developer.tastytrade.com 复制"
               required
             />
 
@@ -361,7 +499,7 @@ function MonitorTab({ user, db }) {
 
             <Button
               type="submit"
-              disabled={status === 'loading' || !username.trim() || !password.trim()}
+              disabled={status === 'loading' || !clientId.trim() || !refreshToken.trim()}
               className="w-full"
             >
               {status === 'loading' ? (
@@ -377,14 +515,69 @@ function MonitorTab({ user, db }) {
           </form>
         )}
 
+        {/* Demo mode form */}
+        {!isLoadingCache && status !== 'connected' && isDemoMode && (
+          <form onSubmit={handleConnect} className="space-y-4">
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+              <p className="text-sm text-amber-700 dark:text-amber-300">
+                演示模式 — 在这个模式下，连接会使用模拟数据进行测试，不需要实际的 OAuth 凭据。
+              </p>
+            </div>
+
+            {/* Error display */}
+            {error && (
+              <div
+                className={`p-3 rounded-lg text-sm border ${
+                  error.type === 'cors'
+                    ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300'
+                    : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <AlertTriangle
+                    size={14}
+                    className={`mt-0.5 shrink-0 ${
+                      error.type === 'cors' ? 'text-amber-500' : 'text-red-500'
+                    }`}
+                  />
+                  <span>{error.message}</span>
+                </div>
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              disabled={status === 'loading'}
+              className="w-full"
+            >
+              {status === 'loading' ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" /> 连接中...
+                </>
+              ) : (
+                <>
+                  <Wifi size={16} /> 连接（演示模式）
+                </>
+              )}
+            </Button>
+          </form>
+        )}
+
         {/* Connected state */}
         {!isLoadingCache && status === 'connected' && sessionData && (
           <div className="space-y-4">
-            {/* Demo mode banner */}
+            {/* Mode banner */}
             {sessionData.isDemoMode && (
               <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3">
                 <p className="text-sm text-indigo-700 dark:text-indigo-300">
-                  🎭 <strong>演示模式</strong> — 使用模拟数据进行测试。真实的 Tastytrade API 需要设备认证挑战（Phase 2 实现）。
+                  🎭 <strong>演示模式</strong> — 使用模拟数据进行测试。
+                </p>
+              </div>
+            )}
+            {sessionData.accessToken && (
+              <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3">
+                <p className="text-sm text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                  <RefreshCw size={14} /> <strong>OAuth 已连接</strong> — 使用 refresh token 自动更新凭据。
                 </p>
               </div>
             )}
@@ -417,7 +610,7 @@ function MonitorTab({ user, db }) {
                       : 'text-emerald-600 dark:text-emerald-400'
                   }`}>
                     <Clock size={10} />
-                    {formatExpiry(sessionData.sessionExpiration)}
+                    {formatExpiry(sessionData.isDemoMode ? sessionData.sessionExpiration : sessionData.accessTokenExpiry, !sessionData.isDemoMode)}
                   </div>
                 </div>
               </div>
@@ -426,7 +619,7 @@ function MonitorTab({ user, db }) {
                   ? 'bg-indigo-100 dark:bg-indigo-800 text-indigo-700 dark:text-indigo-300'
                   : 'bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300'
               }`}>
-                {sessionData.isDemoMode ? '演示已连接' : '已连接'}
+                {sessionData.isDemoMode ? '演示已连接' : 'OAuth 已连接'}
               </span>
             </div>
 
