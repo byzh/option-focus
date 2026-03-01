@@ -180,13 +180,24 @@ function MonitorTab({ user, db }) {
         message: '用户名或密码错误（401 Unauthorized）。请检查 Tastytrade 账户凭据。',
       });
       setStatus('error');
+    } else if (response.status === 403) {
+      // 403 could be CORS preflight rejection or API rate limit
+      const errorMsg = responseData?.error?.message || '请求被拒绝';
+      setError({
+        type: 'cors',
+        message: `API 返回 403 Forbidden: ${errorMsg}。这通常表示：\n1. CORS 策略限制\n2. API 账户权限不足\n3. 登录尝试过多被临时锁定\n\n请检查 Tastytrade 账户状态，或稍后重试。`,
+      });
+      setStatus('error');
     } else {
       setError({
         type: 'unknown',
-        message: `API 返回非预期状态码 ${response.status}。`,
+        message: `API 返回非预期状态码 ${response.status}。响应: ${responseData?.error?.message || '无详情'}`,
       });
       setStatus('error');
     }
+
+    // Log for debugging
+    console.log(`[Tastytrade API Response] Status: ${response.status}`, responseData);
   };
 
   // Clear stored token
