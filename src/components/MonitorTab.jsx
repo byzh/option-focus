@@ -46,6 +46,9 @@ function MonitorTab({ user, db }) {
   // Cache loading state
   const [isLoadingCache, setIsLoadingCache] = useState(true);
 
+  // Demo mode toggle
+  const [isDemoMode, setIsDemoMode] = useState(false);
+
   // Load cached token on mount
   useEffect(() => {
     if (!user || !db) {
@@ -93,6 +96,37 @@ function MonitorTab({ user, db }) {
     setError(null);
     setRawResponse(null);
 
+    // DEMO MODE: Skip API call and simulate successful connection
+    if (isDemoMode) {
+      await new Promise(resolve => setTimeout(resolve, 800)); // Simulate network delay
+
+      const demoExpiration = new Date();
+      demoExpiration.setHours(demoExpiration.getHours() + 24); // 24 hours from now
+
+      const newSessionData = {
+        sessionToken: `demo_token_${Date.now()}`,
+        sessionExpiration: demoExpiration.toISOString(),
+        tastyUsername: username.trim(),
+        cachedAt: Date.now(),
+        isDemoMode: true,
+      };
+
+      // Persist to Firestore
+      try {
+        const ref = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'config', 'tastytrade');
+        await setDoc(ref, newSessionData, { merge: true });
+      } catch (firestoreError) {
+        console.error('Failed to cache token in Firestore:', firestoreError);
+      }
+
+      setSessionData(newSessionData);
+      setStatus('connected');
+      setPassword('');
+      setRawResponse({ mode: 'demo', message: '演示模式 - 使用模拟数据' });
+      return;
+    }
+
+    // REAL API MODE: Call Tastytrade API
     const body = {
       login: username.trim(),
       password: password,
@@ -249,13 +283,31 @@ function MonitorTab({ user, db }) {
 
       {/* Tastytrade API Connection Card */}
       <Card className="p-5 mb-6">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="bg-slate-100 dark:bg-slate-700 p-1.5 rounded-lg text-slate-600 dark:text-slate-400">
-            <Wifi size={16} />
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="bg-slate-100 dark:bg-slate-700 p-1.5 rounded-lg text-slate-600 dark:text-slate-400">
+              <Wifi size={16} />
+            </div>
+            <h3 className="font-semibold text-slate-700 dark:text-slate-200">
+              Tastytrade API 连接
+            </h3>
+            {isDemoMode && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-medium">
+                🎭 演示模式
+              </span>
+            )}
           </div>
-          <h3 className="font-semibold text-slate-700 dark:text-slate-200">
-            Tastytrade API 连接
-          </h3>
+          {!isLoadingCache && status !== 'connected' && (
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isDemoMode}
+                onChange={(e) => setIsDemoMode(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span className="text-slate-600 dark:text-slate-400">演示模式</span>
+            </label>
+          )}
         </div>
 
         {/* Loading cache */}
@@ -328,24 +380,53 @@ function MonitorTab({ user, db }) {
         {/* Connected state */}
         {!isLoadingCache && status === 'connected' && sessionData && (
           <div className="space-y-4">
+            {/* Demo mode banner */}
+            {sessionData.isDemoMode && (
+              <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3">
+                <p className="text-sm text-indigo-700 dark:text-indigo-300">
+                  🎭 <strong>演示模式</strong> — 使用模拟数据进行测试。真实的 Tastytrade API 需要设备认证挑战（Phase 2 实现）。
+                </p>
+              </div>
+            )}
+
             {/* User info row */}
-            <div className="flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
+            <div className={`flex items-center justify-between p-3 rounded-lg border ${
+              sessionData.isDemoMode
+                ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800'
+                : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
+            }`}>
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-800 flex items-center justify-center">
-                  <User size={16} className="text-emerald-600 dark:text-emerald-400" />
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  sessionData.isDemoMode
+                    ? 'bg-indigo-100 dark:bg-indigo-800'
+                    : 'bg-emerald-100 dark:bg-emerald-800'
+                }`}>
+                  <User size={16} className={sessionData.isDemoMode ? 'text-indigo-600 dark:text-indigo-400' : 'text-emerald-600 dark:text-emerald-400'} />
                 </div>
                 <div>
-                  <div className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">
+                  <div className={`text-sm font-semibold ${
+                    sessionData.isDemoMode
+                      ? 'text-indigo-800 dark:text-indigo-200'
+                      : 'text-emerald-800 dark:text-emerald-200'
+                  }`}>
                     {sessionData.tastyUsername}
                   </div>
-                  <div className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <div className={`text-xs flex items-center gap-1 ${
+                    sessionData.isDemoMode
+                      ? 'text-indigo-600 dark:text-indigo-400'
+                      : 'text-emerald-600 dark:text-emerald-400'
+                  }`}>
                     <Clock size={10} />
                     {formatExpiry(sessionData.sessionExpiration)}
                   </div>
                 </div>
               </div>
-              <span className="text-xs font-medium px-2 py-1 bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-full">
-                已连接
+              <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                sessionData.isDemoMode
+                  ? 'bg-indigo-100 dark:bg-indigo-800 text-indigo-700 dark:text-indigo-300'
+                  : 'bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300'
+              }`}>
+                {sessionData.isDemoMode ? '演示已连接' : '已连接'}
               </span>
             </div>
 
