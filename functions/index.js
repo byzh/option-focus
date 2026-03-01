@@ -1,10 +1,7 @@
-// Load environment variables from .env files (for local dev and deployment)
-require('dotenv').config({ path: __dirname + '/.env.local' });
-require('dotenv').config({ path: __dirname + '/.env.yaml' });
-
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
+const { defineSecret } = require('firebase-functions/params');
 
 // Initialize admin SDK once (singleton)
 initializeApp();
@@ -12,20 +9,24 @@ const db = getFirestore();
 
 const APP_ID = 'option-focus-v2';
 
-// Get OAuth credentials from environment variables
-// Loaded from .env.local or .env.yaml files
-const CLIENT_ID = process.env.TASTYTRADE_CLIENT_ID;
-const CLIENT_SECRET = process.env.TASTYTRADE_CLIENT_SECRET;
+// Define secrets using Firebase Secret Manager
+// These are injected securely at runtime, never exposed in code
+const clientId = defineSecret('TASTYTRADE_CLIENT_ID');
+const clientSecret = defineSecret('TASTYTRADE_CLIENT_SECRET');
 
 // Callable function for OAuth token refresh
 // Client sends only: { refreshToken }
-// Cloud Function handles: clientId (from params) + clientSecret (from params) + refreshToken (from client)
+// Cloud Function handles: clientId (from Secret Manager) + clientSecret (from Secret Manager) + refreshToken (from client)
 exports.tastytradeRefreshToken = onCall(
   {
     region: 'us-central1',
     enforceAppCheck: false,
+    secrets: [clientId, clientSecret], // ⚠️ Declare secrets needed by this function
   },
   async (request) => {
+    // Secrets are automatically injected and available via context
+    const CLIENT_ID = clientId.value();
+    const CLIENT_SECRET = clientSecret.value();
     // 1. Verify authenticated caller
     if (!request.auth || !request.auth.uid) {
       throw new HttpsError(
@@ -88,6 +89,15 @@ exports.tastytradeRefreshToken = onCall(
           tokenData?.error_description ||
           tokenData?.error ||
           `HTTP ${res.status}`;
+
+        // Log full error details for debugging
+        console.error('Tastytrade OAuth error details:', {
+          status: res.status,
+          error: tokenData?.error,
+          errorDescription: tokenData?.error_description,
+          fullResponse: tokenData,
+        });
+
         throw new HttpsError(
           'internal',
           `Tastytrade OAuth failed: ${errorMsg}`
