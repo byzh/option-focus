@@ -1,4 +1,5 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { defineString } = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 
@@ -8,24 +9,17 @@ const db = getFirestore();
 
 const APP_ID = 'option-focus-v2';
 
-// OAuth credentials from environment variables (stored securely via Firebase)
-// Set via: firebase functions:config:set tastytrade.client_id="..." tastytrade.client_secret="..."
-const CLIENT_ID = process.env.TASTYTRADE_CLIENT_ID;
-const CLIENT_SECRET = process.env.TASTYTRADE_CLIENT_SECRET;
-
-// Helper: Validate OAuth credentials are configured
-const validateOAuthConfig = () => {
-  if (!CLIENT_ID || !CLIENT_SECRET) {
-    throw new HttpsError(
-      'failed-precondition',
-      'OAuth credentials not configured. Admin must set environment variables.'
-    );
-  }
-};
+// Define OAuth parameters (new Firebase params API, replaces deprecated functions.config())
+const clientId = defineString('TASTYTRADE_CLIENT_ID', {
+  description: 'Tastytrade OAuth Client ID',
+});
+const clientSecret = defineString('TASTYTRADE_CLIENT_SECRET', {
+  description: 'Tastytrade OAuth Client Secret',
+});
 
 // Callable function for OAuth token refresh
 // Client sends only: { refreshToken }
-// Cloud Function handles: clientId (from env) + clientSecret (from env) + refreshToken (from client)
+// Cloud Function handles: clientId (from params) + clientSecret (from params) + refreshToken (from client)
 exports.tastytradeRefreshToken = onCall(
   {
     region: 'us-central1',
@@ -40,19 +34,23 @@ exports.tastytradeRefreshToken = onCall(
       );
     }
 
-    // 2. Validate OAuth config is set
-    try {
-      validateOAuthConfig();
-    } catch (e) {
-      throw e;
-    }
-
-    // 3. Validate client input
+    // 2. Validate client input
     const { refreshToken } = request.data;
     if (!refreshToken) {
       throw new HttpsError(
         'invalid-argument',
         'refreshToken is required.'
+      );
+    }
+
+    // 3. Get OAuth credentials from params (will fail gracefully if not set)
+    const cid = clientId.value();
+    const csecret = clientSecret.value();
+
+    if (!cid || !csecret) {
+      throw new HttpsError(
+        'failed-precondition',
+        'OAuth credentials not configured. Admin must set TASTYTRADE_CLIENT_ID and TASTYTRADE_CLIENT_SECRET parameters.'
       );
     }
 
@@ -62,8 +60,8 @@ exports.tastytradeRefreshToken = onCall(
       const params = new URLSearchParams();
       params.append('grant_type', 'refresh_token');
       params.append('refresh_token', refreshToken);
-      params.append('client_id', CLIENT_ID);
-      params.append('client_secret', CLIENT_SECRET);
+      params.append('client_id', cid);
+      params.append('client_secret', csecret);
 
       const res = await fetch('https://api.tastytrade.com/oauth/token', {
         method: 'POST',
