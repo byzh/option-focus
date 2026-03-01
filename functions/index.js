@@ -66,7 +66,22 @@ exports.tastytradeRefreshToken = onCall(
         body: params.toString(),
       });
 
-      tokenData = await res.json();
+      const responseText = await res.text();
+
+      let tokenData;
+      try {
+        tokenData = JSON.parse(responseText);
+      } catch (e) {
+        console.error('Tastytrade API returned non-JSON:', {
+          status: res.status,
+          contentType: res.headers.get('content-type'),
+          bodyPreview: responseText.substring(0, 200),
+        });
+        throw new HttpsError(
+          'internal',
+          `Tastytrade API error: HTTP ${res.status}. Check Refresh Token validity.`
+        );
+      }
 
       if (!res.ok) {
         const errorMsg =
