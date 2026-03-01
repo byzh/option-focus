@@ -25,6 +25,7 @@ import ConfirmModal from './components/ConfirmModal';
 import ExecutionModal from './components/ExecutionModal';
 import ItemCard from './components/ItemCard';
 import AddEditModal from './components/AddEditModal';
+import MonitorTab from './components/MonitorTab';
 
 const EMPTY_FORM = () => ({
   id: null, ticker: '', type: 'CALL', direction: 'BUY', actionCategory: 'OPEN',
@@ -329,8 +330,16 @@ export default function App() {
                 交易备忘 (Planner){todaysPlanCount > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold animate-pulse">{todaysPlanCount}</span>}
                 {activeTab === 'planner' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
               </button>
+              <button onClick={() => setActiveTab('monitor')} className={`pb-3 px-2 font-medium text-sm transition-all relative ${activeTab === 'monitor' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>
+                行情扫描 (Monitor)
+                {activeTab === 'monitor' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
+              </button>
             </div>
 
+            {activeTab === 'monitor' ? (
+              <MonitorTab user={user} db={db} />
+            ) : (
+              <>
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-3">{activeTab === 'portfolio' ? '当前持仓 (Open Positions)' : '操作计划 (Planner)'}</h2>
               <div className="flex gap-2"><Button onClick={() => setShowAddModal(true)}><Plus size={18} /> {activeTab === 'portfolio' ? '记录持仓' : '新增备忘'}</Button></div>
@@ -593,6 +602,8 @@ export default function App() {
               });
               })()}
             </div>
+              </>
+            )}
           </>
         )}
       </main>
