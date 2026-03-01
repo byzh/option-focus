@@ -1,3 +1,7 @@
+// Load environment variables from .env files (for local dev and deployment)
+require('dotenv').config({ path: __dirname + '/.env.local' });
+require('dotenv').config({ path: __dirname + '/.env.yaml' });
+
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
@@ -9,7 +13,7 @@ const db = getFirestore();
 const APP_ID = 'option-focus-v2';
 
 // Get OAuth credentials from environment variables
-// Set via: firebase deploy --set-env-vars or .env.local
+// Loaded from .env.local or .env.yaml files
 const CLIENT_ID = process.env.TASTYTRADE_CLIENT_ID;
 const CLIENT_SECRET = process.env.TASTYTRADE_CLIENT_SECRET;
 
