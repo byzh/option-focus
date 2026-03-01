@@ -2,6 +2,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAnalytics } from 'firebase/analytics';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getFunctions } from 'firebase/functions';
 
 const getFirebaseConfig = () => {
   try {
@@ -28,6 +29,7 @@ const getFirebaseConfig = () => {
 let app = null;
 let auth = null;
 let db = null;
+let functions = null;
 let analytics = null;
 let initError = null;
 
@@ -37,6 +39,7 @@ try {
     app = getApps().length === 0 ? initializeApp(config) : getApp();
     auth = getAuth(app);
     db = getFirestore(app);
+    functions = getFunctions(app, 'us-central1');
     if (typeof window !== 'undefined') {
       analytics = getAnalytics(app);
     }
@@ -47,4 +50,4 @@ try {
 }
 
 export const APP_ID = 'option-focus-v2';
-export { app, auth, db, analytics, initError };
+export { app, auth, db, functions, analytics, initError };

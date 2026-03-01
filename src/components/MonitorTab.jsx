@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Wifi, WifiOff, Loader2, AlertTriangle, ChevronUp, Clock, User, BarChart2, BookOpen, ExternalLink, RefreshCw } from 'lucide-react';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import Card from './ui/Card';
 import Button from './ui/Button';
 import Input from './ui/Input';
@@ -37,7 +38,7 @@ const formatExpiry = (iso, isOAuth = false) => {
   }
 };
 
-function MonitorTab({ user, db }) {
+function MonitorTab({ user, db, functions }) {
   // Connection lifecycle state
   const [status, setStatus] = useState('idle'); // idle | loading | connected | error
 
@@ -122,29 +123,28 @@ function MonitorTab({ user, db }) {
     loadCachedToken();
   }, [user, db]);
 
-  // Refresh access token using refresh token
+  // Refresh access token via Cloud Function (clientSecret stays server-side)
   const refreshAccessToken = async (storedData, firestoreRef) => {
     try {
-      const params = new URLSearchParams();
-      params.append('grant_type', 'refresh_token');
-      params.append('refresh_token', storedData.refreshToken);
-      params.append('client_id', storedData.clientId);
-      params.append('client_secret', storedData.clientSecret);
+      // Guard: if functions is not available (e.g. Firebase not configured),
+      // fall back gracefully rather than crashing
+      if (!functions) {
+        throw new Error('Firebase Functions not initialized.');
+      }
 
-      const res = await fetch(TASTYTRADE_API + '/oauth/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
+      const refreshFn = httpsCallable(functions, 'tastytradeRefreshToken');
+      const result = await refreshFn({
+        clientId: storedData.clientId,
+        refreshToken: storedData.refreshToken,
       });
 
-      if (!res.ok) throw new Error(`Token refresh failed: ${res.status}`);
-
-      const data = await res.json();
-      const expiry = new Date(Date.now() + data.expires_in * 1000).toISOString();
+      // result.data is { access_token, expires_in }
+      const { access_token, expires_in } = result.data;
+      const expiry = new Date(Date.now() + expires_in * 1000).toISOString();
 
       const updated = {
         ...storedData,
-        accessToken: data.access_token,
+        accessToken: access_token,
         accessTokenExpiry: expiry,
       };
 
@@ -153,7 +153,9 @@ function MonitorTab({ user, db }) {
       setStatus('connected');
     } catch (e) {
       console.error('Token refresh failed:', e);
-      setStatus('idle'); // Fall back to showing the form
+      setStatus('idle');
+      // e.message for HttpsError gives a readable message
+      // e.code gives 'functions/unauthenticated', 'functions/not-found', etc.
       setError({
         type: 'cors',
         message: `OAuth token 刷新失败: ${e.message}。请重新连接。`,

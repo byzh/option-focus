@@ -12,7 +12,7 @@ import {
   collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot
 } from 'firebase/firestore';
 
-import { app, auth, db, initError, APP_ID } from './firebase/firebaseInit';
+import { app, auth, db, functions, initError, APP_ID } from './firebase/firebaseInit';
 import { getLocalTodayString, isExpiredByTwoDays, isExpired } from './utils/dateUtils';
 
 import Card from './components/ui/Card';
@@ -337,7 +337,7 @@ export default function App() {
             </div>
 
             {activeTab === 'monitor' ? (
-              <MonitorTab user={user} db={db} />
+              <MonitorTab user={user} db={db} functions={functions} />
             ) : (
               <>
             <div className="flex justify-between items-center mb-6">
