@@ -43,6 +43,7 @@ function MonitorTab({ user, db }) {
 
   // Form inputs (OAuth mode)
   const [clientId, setClientId] = useState('');
+  const [clientSecret, setClientSecret] = useState('');
   const [refreshToken, setRefreshToken] = useState('');
 
   // OAuth setup guide state
@@ -124,14 +125,16 @@ function MonitorTab({ user, db }) {
   // Refresh access token using refresh token
   const refreshAccessToken = async (storedData, firestoreRef) => {
     try {
+      const params = new URLSearchParams();
+      params.append('grant_type', 'refresh_token');
+      params.append('refresh_token', storedData.refreshToken);
+      params.append('client_id', storedData.clientId);
+      params.append('client_secret', storedData.clientSecret);
+
       const res = await fetch(TASTYTRADE_API + '/oauth/token', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          grant_type: 'refresh_token',
-          refresh_token: storedData.refreshToken,
-          client_id: storedData.clientId,
-        }),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
       });
 
       if (!res.ok) throw new Error(`Token refresh failed: ${res.status}`);
@@ -161,7 +164,7 @@ function MonitorTab({ user, db }) {
   // Handle connection
   const handleConnect = async (e) => {
     e.preventDefault();
-    if (!clientId.trim() || !refreshToken.trim()) return;
+    if (!clientId.trim() || !clientSecret.trim() || !refreshToken.trim()) return;
 
     setStatus('loading');
     setError(null);
@@ -192,6 +195,7 @@ function MonitorTab({ user, db }) {
 
       setSessionData(newSessionData);
       setStatus('connected');
+      setClientSecret('');
       setRefreshToken('');
       setRawResponse({ mode: 'demo', message: '演示模式 - 使用模拟数据' });
       return;
@@ -201,14 +205,17 @@ function MonitorTab({ user, db }) {
     // Step 1: POST /oauth/token
     let oauthResponse;
     try {
+      // Use form-urlencoded format with client credentials
+      const params = new URLSearchParams();
+      params.append('grant_type', 'refresh_token');
+      params.append('refresh_token', refreshToken.trim());
+      params.append('client_id', clientId.trim());
+      params.append('client_secret', clientSecret.trim());
+
       oauthResponse = await fetch(TASTYTRADE_API + '/oauth/token', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          grant_type: 'refresh_token',
-          refresh_token: refreshToken.trim(),
-          client_id: clientId.trim(),
-        }),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
       });
     } catch (fetchError) {
       if (!navigator.onLine) {
@@ -301,6 +308,7 @@ function MonitorTab({ user, db }) {
     // Step 3: Store in Firestore
     const newSessionData = {
       clientId: clientId.trim(),
+      clientSecret: clientSecret.trim(),
       refreshToken: refreshToken.trim(),
       accessToken,
       accessTokenExpiry,
@@ -343,6 +351,7 @@ function MonitorTab({ user, db }) {
     setRawResponse(null);
     setIsRawExpanded(false);
     setClientId('');
+    setClientSecret('');
     setRefreshToken('');
   };
 
@@ -444,8 +453,8 @@ function MonitorTab({ user, db }) {
                     → Redirect URI 填写：<code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">http://localhost</code></p>
                   </div>
                   <div>
-                    <p className="font-medium mb-1">步骤 3：获取 Client ID</p>
-                    <p className="ml-3">→ 点击 "Save"，复制显示的 Client ID</p>
+                    <p className="font-medium mb-1">步骤 3：获取凭据</p>
+                    <p className="ml-3">→ 点击 "Save"，复制显示的 <strong>Client ID</strong> 和 <strong>Client Secret</strong></p>
                   </div>
                   <div>
                     <p className="font-medium mb-1">步骤 4：获取 Refresh Token</p>
@@ -453,7 +462,7 @@ function MonitorTab({ user, db }) {
                   </div>
                   <div>
                     <p className="font-medium mb-1">步骤 5：填写下方表单</p>
-                    <p className="ml-3">→ 将以上两个值粘贴到下面的表单中并点击"连接"</p>
+                    <p className="ml-3">→ 将以上三个值（Client ID、Client Secret、Refresh Token）粘贴到下面的表单中并点击"连接"</p>
                   </div>
                 </div>
               )}
@@ -464,6 +473,14 @@ function MonitorTab({ user, db }) {
               type="text"
               value={clientId}
               onChange={e => setClientId(e.target.value)}
+              placeholder="从 developer.tastytrade.com 复制"
+              required
+            />
+            <Input
+              label="Client Secret"
+              type="password"
+              value={clientSecret}
+              onChange={e => setClientSecret(e.target.value)}
               placeholder="从 developer.tastytrade.com 复制"
               required
             />
@@ -499,7 +516,7 @@ function MonitorTab({ user, db }) {
 
             <Button
               type="submit"
-              disabled={status === 'loading' || !clientId.trim() || !refreshToken.trim()}
+              disabled={status === 'loading' || !clientId.trim() || !clientSecret.trim() || !refreshToken.trim()}
               className="w-full"
             >
               {status === 'loading' ? (
