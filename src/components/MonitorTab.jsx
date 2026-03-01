@@ -42,9 +42,7 @@ function MonitorTab({ user, db, functions }) {
   // Connection lifecycle state
   const [status, setStatus] = useState('idle'); // idle | loading | connected | error
 
-  // Form inputs (OAuth mode)
-  const [clientId, setClientId] = useState('');
-  const [clientSecret, setClientSecret] = useState('');
+  // Form inputs (OAuth mode) - only refreshToken, clientId/clientSecret are server-side
   const [refreshToken, setRefreshToken] = useState('');
 
   // OAuth setup guide state
@@ -91,7 +89,7 @@ function MonitorTab({ user, db, functions }) {
           }
 
           // OAuth mode: check access token validity
-          if (data.refreshToken && data.clientId) {
+          if (data.refreshToken) {
             if (data.accessToken && isAccessTokenValid(data.accessTokenExpiry)) {
               // Access token still valid
               setSessionData(data);
@@ -123,7 +121,7 @@ function MonitorTab({ user, db, functions }) {
     loadCachedToken();
   }, [user, db]);
 
-  // Refresh access token via Cloud Function (clientSecret stays server-side)
+  // Refresh access token via Cloud Function (clientSecret stays server-side, never sent to client)
   const refreshAccessToken = async (storedData, firestoreRef) => {
     try {
       // Guard: if functions is not available (e.g. Firebase not configured),
@@ -134,7 +132,6 @@ function MonitorTab({ user, db, functions }) {
 
       const refreshFn = httpsCallable(functions, 'tastytradeRefreshToken');
       const result = await refreshFn({
-        clientId: storedData.clientId,
         refreshToken: storedData.refreshToken,
       });
 
@@ -154,19 +151,17 @@ function MonitorTab({ user, db, functions }) {
     } catch (e) {
       console.error('Token refresh failed:', e);
       setStatus('idle');
-      // e.message for HttpsError gives a readable message
-      // e.code gives 'functions/unauthenticated', 'functions/not-found', etc.
       setError({
-        type: 'cors',
+        type: 'oauth',
         message: `OAuth token 刷新失败: ${e.message}。请重新连接。`,
       });
     }
   };
 
-  // Handle connection
+  // Handle connection via Cloud Function (clientSecret is server-side only)
   const handleConnect = async (e) => {
     e.preventDefault();
-    if (!clientId.trim() || !clientSecret.trim() || !refreshToken.trim()) return;
+    if (!refreshToken.trim()) return;
 
     setStatus('loading');
     setError(null);
@@ -197,140 +192,55 @@ function MonitorTab({ user, db, functions }) {
 
       setSessionData(newSessionData);
       setStatus('connected');
-      setClientSecret('');
       setRefreshToken('');
       setRawResponse({ mode: 'demo', message: '演示模式 - 使用模拟数据' });
       return;
     }
 
-    // OAUTH MODE: Exchange refresh_token for access_token, then fetch user info
-    // Step 1: POST /oauth/token
-    let oauthResponse;
+    // OAUTH MODE: Call Cloud Function to get access token
+    // Cloud Function handles clientSecret securely (server-side only)
     try {
-      // Use form-urlencoded format with client credentials
-      const params = new URLSearchParams();
-      params.append('grant_type', 'refresh_token');
-      params.append('refresh_token', refreshToken.trim());
-      params.append('client_id', clientId.trim());
-      params.append('client_secret', clientSecret.trim());
-
-      oauthResponse = await fetch(TASTYTRADE_API + '/oauth/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
-      });
-    } catch (fetchError) {
-      if (!navigator.onLine) {
-        setError({
-          type: 'network',
-          message: '无网络连接，请检查网络后重试。',
-        });
-      } else {
-        setError({
-          type: 'cors',
-          message:
-            'OAuth token 请求被浏览器拦截（CORS 策略限制）。' +
-            '后续版本将通过代理服务器解决此问题。',
-        });
+      if (!functions) {
+        throw new Error('Firebase Functions not initialized.');
       }
-      setStatus('error');
-      return;
-    }
 
-    let oauthData;
-    try {
-      oauthData = await oauthResponse.json();
-    } catch {
-      oauthData = null;
-    }
+      const refreshFn = httpsCallable(functions, 'tastytradeRefreshToken');
+      const result = await refreshFn({
+        refreshToken: refreshToken.trim(),
+      });
 
-    setRawResponse(oauthData);
+      const { access_token, expires_in } = result.data;
+      const accessTokenExpiry = new Date(Date.now() + expires_in * 1000).toISOString();
 
-    if (!oauthResponse.ok) {
-      const errorMsg = oauthData?.error_description || oauthData?.error || '未知错误';
+      // Store minimal data in Firestore (only refreshToken, not clientSecret)
+      const newSessionData = {
+        refreshToken: refreshToken.trim(),
+        accessToken: access_token,
+        accessTokenExpiry,
+        cachedAt: Date.now(),
+      };
+
+      try {
+        const ref = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'config', 'tastytrade');
+        await setDoc(ref, newSessionData, { merge: true });
+      } catch (firestoreError) {
+        console.error('Failed to cache OAuth credentials in Firestore:', firestoreError);
+        // Non-fatal: token is usable in-memory
+      }
+
+      // Update state
+      setSessionData(newSessionData);
+      setStatus('connected');
+      setRefreshToken(''); // Clear password field
+      setRawResponse({ success: true, access_token_expires_in: expires_in, message: '连接成功' });
+    } catch (e) {
+      console.error('OAuth connection failed:', e);
       setError({
         type: 'auth',
-        message: `OAuth token 获取失败 (${oauthResponse.status}): ${errorMsg}。请检查 Client ID 和 Refresh Token。`,
+        message: `连接失败: ${e.message}。请检查 Refresh Token。`,
       });
       setStatus('error');
-      return;
     }
-
-    if (!oauthData?.access_token || !oauthData?.expires_in) {
-      setError({
-        type: 'unknown',
-        message: 'OAuth 响应中缺少 access_token 或 expires_in。',
-      });
-      setStatus('error');
-      return;
-    }
-
-    // Step 2: GET /customers/me with access_token
-    const accessToken = oauthData.access_token;
-    const expiresIn = oauthData.expires_in; // in seconds (typically 900 = 15 minutes)
-    const accessTokenExpiry = new Date(Date.now() + expiresIn * 1000).toISOString();
-
-    let userResponse;
-    try {
-      userResponse = await fetch(TASTYTRADE_API + '/customers/me', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/json',
-        },
-      });
-    } catch (fetchError) {
-      setError({
-        type: 'cors',
-        message: '获取用户信息失败（CORS 或网络错误）。',
-      });
-      setStatus('error');
-      return;
-    }
-
-    let userData;
-    try {
-      userData = await userResponse.json();
-    } catch {
-      userData = null;
-    }
-
-    if (!userResponse.ok) {
-      const errorMsg = userData?.error || '未知错误';
-      setError({
-        type: 'auth',
-        message: `获取用户信息失败 (${userResponse.status}): ${errorMsg}`,
-      });
-      setStatus('error');
-      return;
-    }
-
-    const tastyUsername = userData?.data?.user?.username || 'Unknown';
-
-    // Step 3: Store in Firestore
-    const newSessionData = {
-      clientId: clientId.trim(),
-      clientSecret: clientSecret.trim(),
-      refreshToken: refreshToken.trim(),
-      accessToken,
-      accessTokenExpiry,
-      tastyUsername,
-      cachedAt: Date.now(),
-    };
-
-    try {
-      const ref = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'config', 'tastytrade');
-      await setDoc(ref, newSessionData, { merge: true });
-    } catch (firestoreError) {
-      console.error('Failed to cache OAuth credentials in Firestore:', firestoreError);
-      // Non-fatal: token is usable in-memory
-    }
-
-    // Step 4: Update state
-    setSessionData(newSessionData);
-    setStatus('connected');
-    setRefreshToken(''); // Clear password field
-    setRawResponse({ success: true, access_token_expires_in: expiresIn, message: 'OAuth 连接成功' });
   };
 
   // Clear stored token
@@ -352,8 +262,6 @@ function MonitorTab({ user, db, functions }) {
     setError(null);
     setRawResponse(null);
     setIsRawExpanded(false);
-    setClientId('');
-    setClientSecret('');
     setRefreshToken('');
   };
 
@@ -455,37 +363,18 @@ function MonitorTab({ user, db, functions }) {
                     → Redirect URI 填写：<code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">http://localhost</code></p>
                   </div>
                   <div>
-                    <p className="font-medium mb-1">步骤 3：获取凭据</p>
-                    <p className="ml-3">→ 点击 "Save"，复制显示的 <strong>Client ID</strong> 和 <strong>Client Secret</strong></p>
-                  </div>
-                  <div>
-                    <p className="font-medium mb-1">步骤 4：获取 Refresh Token</p>
+                    <p className="font-medium mb-1">步骤 3：获取 Refresh Token</p>
                     <p className="ml-3">→ 点击 "Create Grant"，复制显示的 Refresh Token</p>
                   </div>
                   <div>
-                    <p className="font-medium mb-1">步骤 5：填写下方表单</p>
-                    <p className="ml-3">→ 将以上三个值（Client ID、Client Secret、Refresh Token）粘贴到下面的表单中并点击"连接"</p>
+                    <p className="font-medium mb-1">步骤 4：填写下方表单</p>
+                    <p className="ml-3">→ 将 Refresh Token 粘贴到下面的表单中并点击"连接"<br/>
+                    → Client ID 和 Client Secret 由应用服务端安全保管</p>
                   </div>
                 </div>
               )}
             </div>
 
-            <Input
-              label="Client ID"
-              type="text"
-              value={clientId}
-              onChange={e => setClientId(e.target.value)}
-              placeholder="从 developer.tastytrade.com 复制"
-              required
-            />
-            <Input
-              label="Client Secret"
-              type="password"
-              value={clientSecret}
-              onChange={e => setClientSecret(e.target.value)}
-              placeholder="从 developer.tastytrade.com 复制"
-              required
-            />
             <Input
               label="Refresh Token"
               type="password"
@@ -518,7 +407,7 @@ function MonitorTab({ user, db, functions }) {
 
             <Button
               type="submit"
-              disabled={status === 'loading' || !clientId.trim() || !clientSecret.trim() || !refreshToken.trim()}
+              disabled={status === 'loading' || !refreshToken.trim()}
               className="w-full"
             >
               {status === 'loading' ? (

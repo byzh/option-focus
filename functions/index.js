@@ -8,6 +8,24 @@ const db = getFirestore();
 
 const APP_ID = 'option-focus-v2';
 
+// OAuth credentials from environment variables (stored securely via Firebase)
+// Set via: firebase functions:config:set tastytrade.client_id="..." tastytrade.client_secret="..."
+const CLIENT_ID = process.env.TASTYTRADE_CLIENT_ID;
+const CLIENT_SECRET = process.env.TASTYTRADE_CLIENT_SECRET;
+
+// Helper: Validate OAuth credentials are configured
+const validateOAuthConfig = () => {
+  if (!CLIENT_ID || !CLIENT_SECRET) {
+    throw new HttpsError(
+      'failed-precondition',
+      'OAuth credentials not configured. Admin must set environment variables.'
+    );
+  }
+};
+
+// Callable function for OAuth token refresh
+// Client sends only: { refreshToken }
+// Cloud Function handles: clientId (from env) + clientSecret (from env) + refreshToken (from client)
 exports.tastytradeRefreshToken = onCall(
   {
     region: 'us-central1',
@@ -22,64 +40,30 @@ exports.tastytradeRefreshToken = onCall(
       );
     }
 
-    const uid = request.auth.uid;
-    const { clientId, refreshToken } = request.data;
+    // 2. Validate OAuth config is set
+    try {
+      validateOAuthConfig();
+    } catch (e) {
+      throw e;
+    }
 
-    // 2. Validate required inputs from client
-    if (!clientId || !refreshToken) {
+    // 3. Validate client input
+    const { refreshToken } = request.data;
+    if (!refreshToken) {
       throw new HttpsError(
         'invalid-argument',
-        'clientId and refreshToken are required.'
+        'refreshToken is required.'
       );
     }
 
-    // 3. Read clientSecret from Firestore server-side
-    let clientSecret;
-    try {
-      const ref = db
-        .collection('artifacts')
-        .doc(APP_ID)
-        .collection('users')
-        .doc(uid)
-        .collection('config')
-        .doc('tastytrade');
-
-      const snap = await ref.get();
-
-      if (!snap.exists) {
-        throw new HttpsError(
-          'not-found',
-          'No Tastytrade credentials found. Please reconnect.'
-        );
-      }
-
-      const data = snap.data();
-
-      if (!data.clientSecret) {
-        throw new HttpsError(
-          'not-found',
-          'clientSecret not found in stored credentials.'
-        );
-      }
-
-      clientSecret = data.clientSecret;
-    } catch (e) {
-      // Re-throw HttpsErrors unchanged; wrap unexpected Firestore errors
-      if (e instanceof HttpsError) throw e;
-      throw new HttpsError(
-        'internal',
-        `Failed to read credentials from Firestore: ${e.message}`
-      );
-    }
-
-    // 4. Call Tastytrade OAuth token endpoint
+    // 4. Call Tastytrade OAuth token endpoint (server-side, clientSecret never sent to client)
     let tokenData;
     try {
       const params = new URLSearchParams();
       params.append('grant_type', 'refresh_token');
       params.append('refresh_token', refreshToken);
-      params.append('client_id', clientId);
-      params.append('client_secret', clientSecret);
+      params.append('client_id', CLIENT_ID);
+      params.append('client_secret', CLIENT_SECRET);
 
       const res = await fetch('https://api.tastytrade.com/oauth/token', {
         method: 'POST',
@@ -115,7 +99,7 @@ exports.tastytradeRefreshToken = onCall(
       );
     }
 
-    // 6. Return only what the client needs — never echo clientSecret
+    // 6. Return only what the client needs
     return {
       access_token: tokenData.access_token,
       expires_in: tokenData.expires_in,
