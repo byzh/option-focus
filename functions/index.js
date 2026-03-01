@@ -1,5 +1,4 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const { defineString } = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 
@@ -9,13 +8,10 @@ const db = getFirestore();
 
 const APP_ID = 'option-focus-v2';
 
-// Define OAuth parameters (new Firebase params API, replaces deprecated functions.config())
-const clientId = defineString('TASTYTRADE_CLIENT_ID', {
-  description: 'Tastytrade OAuth Client ID',
-});
-const clientSecret = defineString('TASTYTRADE_CLIENT_SECRET', {
-  description: 'Tastytrade OAuth Client Secret',
-});
+// OAuth credentials from environment variables
+// Can be set via .env.local file in functions directory
+const CLIENT_ID = process.env.TASTYTRADE_CLIENT_ID;
+const CLIENT_SECRET = process.env.TASTYTRADE_CLIENT_SECRET;
 
 // Callable function for OAuth token refresh
 // Client sends only: { refreshToken }
@@ -43,14 +39,11 @@ exports.tastytradeRefreshToken = onCall(
       );
     }
 
-    // 3. Get OAuth credentials from params (will fail gracefully if not set)
-    const cid = clientId.value();
-    const csecret = clientSecret.value();
-
-    if (!cid || !csecret) {
+    // 3. Validate OAuth credentials are configured
+    if (!CLIENT_ID || !CLIENT_SECRET) {
       throw new HttpsError(
         'failed-precondition',
-        'OAuth credentials not configured. Admin must set TASTYTRADE_CLIENT_ID and TASTYTRADE_CLIENT_SECRET parameters.'
+        'OAuth credentials not configured. Admin must set TASTYTRADE_CLIENT_ID and TASTYTRADE_CLIENT_SECRET environment variables.'
       );
     }
 
@@ -60,8 +53,8 @@ exports.tastytradeRefreshToken = onCall(
       const params = new URLSearchParams();
       params.append('grant_type', 'refresh_token');
       params.append('refresh_token', refreshToken);
-      params.append('client_id', cid);
-      params.append('client_secret', csecret);
+      params.append('client_id', CLIENT_ID);
+      params.append('client_secret', CLIENT_SECRET);
 
       const res = await fetch('https://api.tastytrade.com/oauth/token', {
         method: 'POST',
