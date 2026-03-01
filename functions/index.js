@@ -1,4 +1,5 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const functions = require('firebase-functions');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 
@@ -7,11 +8,6 @@ initializeApp();
 const db = getFirestore();
 
 const APP_ID = 'option-focus-v2';
-
-// OAuth credentials from environment variables
-// Can be set via .env.local file in functions directory
-const CLIENT_ID = process.env.TASTYTRADE_CLIENT_ID;
-const CLIENT_SECRET = process.env.TASTYTRADE_CLIENT_SECRET;
 
 // Callable function for OAuth token refresh
 // Client sends only: { refreshToken }
@@ -39,11 +35,15 @@ exports.tastytradeRefreshToken = onCall(
       );
     }
 
-    // 3. Validate OAuth credentials are configured
-    if (!CLIENT_ID || !CLIENT_SECRET) {
+    // 3. Get OAuth credentials from Firebase config
+    const config = functions.config();
+    const clientId = config.tastytrade?.client_id || process.env.TASTYTRADE_CLIENT_ID;
+    const clientSecret = config.tastytrade?.client_secret || process.env.TASTYTRADE_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
       throw new HttpsError(
         'failed-precondition',
-        'OAuth credentials not configured. Admin must set TASTYTRADE_CLIENT_ID and TASTYTRADE_CLIENT_SECRET environment variables.'
+        'OAuth credentials not configured. Admin must run: firebase functions:config:set tastytrade.client_id="..." tastytrade.client_secret="..."'
       );
     }
 
@@ -53,8 +53,8 @@ exports.tastytradeRefreshToken = onCall(
       const params = new URLSearchParams();
       params.append('grant_type', 'refresh_token');
       params.append('refresh_token', refreshToken);
-      params.append('client_id', CLIENT_ID);
-      params.append('client_secret', CLIENT_SECRET);
+      params.append('client_id', clientId);
+      params.append('client_secret', clientSecret);
 
       const res = await fetch('https://api.tastytrade.com/oauth/token', {
         method: 'POST',
