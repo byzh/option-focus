@@ -93,7 +93,7 @@ function MonitorTab({ user, db, functions }) {
   }, [user, db]);
 
   // Cloud Function base URL
-  const CLOUD_FN_BASE = 'https://us-central1-option-focus-test.cloudfunctions.net';
+  const CLOUD_FN_BASE = `https://us-central1-${import.meta.env.VITE_FIREBASE_PROJECT_ID}.cloudfunctions.net`;
 
   // Handle connection via Cloud Function (clientSecret is server-side only)
   const handleConnect = async (e) => {
