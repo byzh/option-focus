@@ -68,17 +68,17 @@ exports.tastytradeRefreshToken = onRequest(
         // 4. Call Tastytrade OAuth endpoint
         console.log('Calling Tastytrade OAuth for user:', decodedToken.uid);
 
-        const requestBody = {
+        const params = new URLSearchParams({
           grant_type: 'refresh_token',
           refresh_token: refreshToken.trim(),
           client_id: CLIENT_ID.trim(),
           client_secret: CLIENT_SECRET.trim(),
-        };
+        });
 
         const oauthRes = await fetch('https://api.tastytrade.com/oauth/token', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody),
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params.toString(),
         });
 
         const responseText = await oauthRes.text();
