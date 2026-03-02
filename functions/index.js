@@ -22,6 +22,7 @@ exports.tastytradeRefreshToken = onCall(
   {
     region: 'us-central1',
     enforceAppCheck: false,
+    cors: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'], // Allow localhost for dev
     secrets: [clientId, clientSecret], // ⚠️ Declare secrets needed by this function
   },
   async (request) => {
