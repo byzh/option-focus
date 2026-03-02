@@ -94,7 +94,10 @@ exports.tastytradeRefreshToken = onRequest(
 
         const oauthRes = await fetch('https://api.tastytrade.com/oauth/token', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': 'OptionFocus/1.0',
+          },
           body: bodyString,
         });
 
