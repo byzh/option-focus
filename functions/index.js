@@ -1,3 +1,4 @@
+// Updated: 2026-03-02 Force redeploy
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
