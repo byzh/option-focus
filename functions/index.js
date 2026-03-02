@@ -1,5 +1,5 @@
-// Updated: 2026-03-02 CORS Fix - Switch to onRequest with manual CORS handling
-// Force redeploy to reload secrets from Secret Manager
+// Firebase Cloud Function for Tastytrade OAuth token refresh
+// Uses onRequest with CORS middleware for browser compatibility
 const { onRequest } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
@@ -58,13 +58,6 @@ exports.tastytradeRefreshToken = onRequest(
         const CLIENT_ID = clientId.value();
         const CLIENT_SECRET = clientSecret.value();
 
-        console.log('Secret values loaded:', {
-          clientIdExists: !!CLIENT_ID,
-          clientIdLength: CLIENT_ID?.length || 0,
-          clientSecretExists: !!CLIENT_SECRET,
-          clientSecretLength: CLIENT_SECRET?.length || 0,
-        });
-
         if (!CLIENT_ID || !CLIENT_SECRET) {
           console.error('Secrets not configured');
           return res.status(500).json({
@@ -74,11 +67,7 @@ exports.tastytradeRefreshToken = onRequest(
         }
 
         // 4. Call Tastytrade OAuth endpoint
-        console.log('=== Tastytrade OAuth Request Debug ===');
-        console.log('User UID:', decodedToken.uid);
-        console.log('CLIENT_ID length:', CLIENT_ID.length);
-        console.log('CLIENT_SECRET length:', CLIENT_SECRET.length);
-        console.log('Refresh Token length:', refreshToken.trim().length);
+        console.log('Calling Tastytrade OAuth for user:', decodedToken.uid);
 
         const params = new URLSearchParams({
           grant_type: 'refresh_token',
@@ -87,25 +76,16 @@ exports.tastytradeRefreshToken = onRequest(
           client_secret: CLIENT_SECRET.trim(),
         });
 
-        const bodyString = params.toString();
-        console.log('URLSearchParams body (first 100 chars):', bodyString.substring(0, 100));
-        console.log('URLSearchParams body length:', bodyString.length);
-        console.log('Request headers:', { 'Content-Type': 'application/x-www-form-urlencoded' });
-
         const oauthRes = await fetch('https://api.tastytrade.com/oauth/token', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
             'User-Agent': 'OptionFocus/1.0',
           },
-          body: bodyString,
+          body: params.toString(),
         });
 
-        console.log('Tastytrade response status:', oauthRes.status);
-        console.log('Tastytrade response headers:', Object.fromEntries(oauthRes.headers));
-
         const responseText = await oauthRes.text();
-        console.log('Tastytrade response body (first 500 chars):', responseText.substring(0, 500));
         let tokenData;
 
         try {
