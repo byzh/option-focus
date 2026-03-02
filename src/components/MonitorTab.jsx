@@ -289,6 +289,50 @@ function MonitorTab({ user, db, functions }) {
     }
   };
 
+  // Test API: fetch /customers/me and a sample quote
+  const [apiTestResult, setApiTestResult] = useState(null);
+  const [apiTestLoading, setApiTestLoading] = useState(false);
+
+  const handleTestApi = async () => {
+    if (!sessionData?.accessToken) return;
+    setApiTestLoading(true);
+    setApiTestResult(null);
+
+    const results = {};
+    const headers = {
+      'Authorization': `Bearer ${sessionData.accessToken}`,
+    };
+
+    // Test 1: /customers/me
+    try {
+      const meRes = await fetch(`${TASTYTRADE_API}/customers/me`, { headers });
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        results.customerMe = { status: 'ok', data: meData.data };
+      } else {
+        results.customerMe = { status: 'error', code: meRes.status, text: await meRes.text() };
+      }
+    } catch (e) {
+      results.customerMe = { status: 'cors_or_network_error', message: e.message };
+    }
+
+    // Test 2: Quote for SPY
+    try {
+      const quoteRes = await fetch(`${TASTYTRADE_API}/market-data/SPY/quotes`, { headers });
+      if (quoteRes.ok) {
+        const quoteData = await quoteRes.json();
+        results.spyQuote = { status: 'ok', data: quoteData.data };
+      } else {
+        results.spyQuote = { status: 'error', code: quoteRes.status, text: await quoteRes.text() };
+      }
+    } catch (e) {
+      results.spyQuote = { status: 'cors_or_network_error', message: e.message };
+    }
+
+    setApiTestResult(results);
+    setApiTestLoading(false);
+  };
+
   // Handle disconnection
   const handleDisconnect = async () => {
     await clearStoredToken();
@@ -565,6 +609,27 @@ function MonitorTab({ user, db, functions }) {
                 {sessionData.isDemoMode ? '演示已连接' : 'OAuth 已连接'}
               </span>
             </div>
+
+            {/* Test API button */}
+            {!sessionData.isDemoMode && (
+              <Button onClick={handleTestApi} disabled={apiTestLoading} className="w-full">
+                {apiTestLoading ? (
+                  <><Loader2 size={16} className="animate-spin" /> 测试中...</>
+                ) : (
+                  <><BarChart2 size={16} /> 测试 API（获取用户信息 + SPY 报价）</>
+                )}
+              </Button>
+            )}
+
+            {/* API Test Results */}
+            {apiTestResult && (
+              <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 space-y-2">
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">API 测试结果：</p>
+                <pre className="text-[11px] bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 p-2 rounded overflow-auto max-h-64">
+                  {JSON.stringify(apiTestResult, null, 2)}
+                </pre>
+              </div>
+            )}
 
             {/* Disconnect button */}
             <Button variant="danger" onClick={handleDisconnect} className="w-full">
