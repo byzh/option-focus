@@ -41,8 +41,7 @@ function MonitorTab({ user, db, functions }) {
   // Connection lifecycle state
   const [status, setStatus] = useState('idle'); // idle | loading | connected | error
 
-  // Form inputs (OAuth mode) - only refreshToken and clientId from user, clientSecret is server-side
-  const [clientId, setClientId] = useState('');
+  // Form inputs (OAuth mode) - only refreshToken from user, clientId and clientSecret are server-side (Secret Manager)
   const [refreshToken, setRefreshToken] = useState('');
 
   // OAuth setup guide state
@@ -142,7 +141,6 @@ function MonitorTab({ user, db, functions }) {
           'Authorization': `Bearer ${idToken}`,
         },
         body: JSON.stringify({
-          clientId: storedData.clientId || '',
           refreshToken: storedData.refreshToken,
         }),
       });
@@ -181,7 +179,7 @@ function MonitorTab({ user, db, functions }) {
   // Handle connection via Cloud Function (clientSecret is server-side only)
   const handleConnect = async (e) => {
     e.preventDefault();
-    if (!clientId.trim() || !refreshToken.trim()) return;
+    if (!refreshToken.trim()) return;
 
     setStatus('loading');
     setError(null);
@@ -236,7 +234,6 @@ function MonitorTab({ user, db, functions }) {
           'Authorization': `Bearer ${idToken}`,
         },
         body: JSON.stringify({
-          clientId: clientId.trim(),
           refreshToken: refreshToken.trim(),
         }),
       });
@@ -250,9 +247,8 @@ function MonitorTab({ user, db, functions }) {
       const { access_token, expires_in } = result;
       const accessTokenExpiry = new Date(Date.now() + expires_in * 1000).toISOString();
 
-      // Store minimal data in Firestore (only refreshToken, not clientSecret)
+      // Store minimal data in Firestore (only refreshToken, not clientSecret/clientId)
       const newSessionData = {
-        clientId: clientId.trim(),
         refreshToken: refreshToken.trim(),
         accessToken: access_token,
         accessTokenExpiry,
@@ -301,7 +297,6 @@ function MonitorTab({ user, db, functions }) {
     setError(null);
     setRawResponse(null);
     setIsRawExpanded(false);
-    setClientId('');
     setRefreshToken('');
   };
 
@@ -408,21 +403,12 @@ function MonitorTab({ user, db, functions }) {
                   </div>
                   <div>
                     <p className="font-medium mb-1">步骤 4：填写下方表单</p>
-                    <p className="ml-3">→ 将 Client ID 和 Refresh Token 粘贴到下面的表单中并点击"连接"<br/>
-                    → Client Secret 由应用服务端安全保管，无需填写</p>
+                    <p className="ml-3">→ 将 Refresh Token 粘贴到下面的表单中并点击"连接"<br/>
+                    → Client ID 和 Client Secret 由应用服务端通过 Secret Manager 安全保管</p>
                   </div>
                 </div>
               )}
             </div>
-
-            <Input
-              label="Client ID"
-              type="text"
-              value={clientId}
-              onChange={e => setClientId(e.target.value)}
-              placeholder="从 developer.tastytrade.com 应用设置复制"
-              required
-            />
 
             <Input
               label="Refresh Token"
