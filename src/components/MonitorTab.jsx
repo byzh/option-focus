@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Wifi, WifiOff, Loader2, AlertTriangle, ChevronUp, Clock, User, BarChart2, BookOpen, ExternalLink, RefreshCw } from 'lucide-react';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
 import Card from './ui/Card';
 import Button from './ui/Button';
 import Input from './ui/Input';
@@ -124,19 +123,39 @@ function MonitorTab({ user, db, functions }) {
   // Refresh access token via Cloud Function (clientSecret stays server-side, never sent to client)
   const refreshAccessToken = async (storedData, firestoreRef) => {
     try {
-      // Guard: if functions is not available (e.g. Firebase not configured),
-      // fall back gracefully rather than crashing
-      if (!functions) {
-        throw new Error('Firebase Functions not initialized.');
+      if (!user) {
+        throw new Error('User not authenticated.');
       }
 
-      const refreshFn = httpsCallable(functions, 'tastytradeRefreshToken');
-      const result = await refreshFn({
-        refreshToken: storedData.refreshToken,
+      console.log('[refreshAccessToken] Auth user:', user?.uid, 'Refreshing access token...');
+
+      // Get Firebase ID token
+      const idToken = await user.getIdToken();
+
+      // Call Cloud Function as HTTP endpoint
+      const cloudFunctionUrl = 'https://us-central1-option-focus-test.cloudfunctions.net/tastytradeRefreshToken';
+      const response = await fetch(cloudFunctionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          clientId: storedData.clientId || '',
+          refreshToken: storedData.refreshToken,
+        }),
       });
 
-      // result.data is { access_token, expires_in }
-      const { access_token, expires_in } = result.data;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('[refreshAccessToken] Cloud Function returned:', result);
+
+      // result is { access_token, expires_in }
+      const { access_token, expires_in } = result;
       const expiry = new Date(Date.now() + expires_in * 1000).toISOString();
 
       const updated = {
@@ -200,20 +219,39 @@ function MonitorTab({ user, db, functions }) {
     // OAUTH MODE: Call Cloud Function to get access token
     // Cloud Function handles clientSecret securely (server-side only)
     try {
-      if (!functions) {
-        throw new Error('Firebase Functions not initialized.');
+      if (!user) {
+        throw new Error('User not authenticated.');
       }
 
-      const refreshFn = httpsCallable(functions, 'tastytradeRefreshToken');
-      const result = await refreshFn({
-        refreshToken: refreshToken.trim(),
+      // Get Firebase ID token for authorization
+      const idToken = await user.getIdToken();
+
+      // Call Cloud Function as HTTP endpoint (onRequest, not onCall)
+      const cloudFunctionUrl = 'https://us-central1-option-focus-test.cloudfunctions.net/tastytradeRefreshToken';
+      const response = await fetch(cloudFunctionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          clientId: storedData?.clientId || '',
+          refreshToken: refreshToken.trim(),
+        }),
       });
 
-      const { access_token, expires_in } = result.data;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      const { access_token, expires_in } = result;
       const accessTokenExpiry = new Date(Date.now() + expires_in * 1000).toISOString();
 
       // Store minimal data in Firestore (only refreshToken, not clientSecret)
       const newSessionData = {
+        clientId: storedData?.clientId || '',
         refreshToken: refreshToken.trim(),
         accessToken: access_token,
         accessTokenExpiry,
