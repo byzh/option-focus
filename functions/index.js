@@ -27,6 +27,15 @@ exports.tastytradeRefreshToken = onCall(
     // Secrets are automatically injected and available via context
     const CLIENT_ID = clientId.value();
     const CLIENT_SECRET = clientSecret.value();
+
+    // Debug: Log secret injection (without exposing actual values)
+    console.log('Secret injection debug:', {
+      clientIdLength: CLIENT_ID?.length || 0,
+      clientSecretLength: CLIENT_SECRET?.length || 0,
+      clientIdSet: !!CLIENT_ID,
+      clientSecretSet: !!CLIENT_SECRET,
+    });
+
     // 1. Verify authenticated caller
     if (!request.auth || !request.auth.uid) {
       throw new HttpsError(
@@ -44,6 +53,11 @@ exports.tastytradeRefreshToken = onCall(
       );
     }
 
+    // Trim whitespace from inputs (same as UI implementation)
+    const trimmedRefreshToken = refreshToken.trim();
+    const trimmedClientId = CLIENT_ID.trim();
+    const trimmedClientSecret = CLIENT_SECRET.trim();
+
     // 3. Validate OAuth credentials are configured
     if (!CLIENT_ID || !CLIENT_SECRET) {
       throw new HttpsError(
@@ -55,21 +69,40 @@ exports.tastytradeRefreshToken = onCall(
     // 4. Call Tastytrade OAuth token endpoint (server-side, clientSecret never sent to client)
     let tokenData;
     try {
-      const params = new URLSearchParams();
-      params.append('grant_type', 'refresh_token');
-      params.append('refresh_token', refreshToken);
-      params.append('client_id', CLIENT_ID);
-      params.append('client_secret', CLIENT_SECRET);
+      const requestBody = {
+        grant_type: 'refresh_token',
+        refresh_token: trimmedRefreshToken,
+        client_id: trimmedClientId,
+        client_secret: trimmedClientSecret,
+      };
+
+      console.log('Calling Tastytrade OAuth with request:', {
+        url: 'https://api.tastytrade.com/oauth/token',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          grant_type: requestBody.grant_type,
+          refresh_token: `***${trimmedRefreshToken.slice(-10)}`,
+          client_id: `***${trimmedClientId.slice(-5)}`,
+          client_secret: `***${trimmedClientSecret.slice(-5)}`,
+        },
+      });
 
       const res = await fetch('https://api.tastytrade.com/oauth/token', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
       });
 
       const responseText = await res.text();
 
-      let tokenData;
+      console.log('Tastytrade response:', {
+        status: res.status,
+        statusText: res.statusText,
+        contentType: res.headers.get('content-type'),
+        bodyPreview: responseText.substring(0, 300),
+      });
+
       try {
         tokenData = JSON.parse(responseText);
       } catch (e) {
