@@ -6,35 +6,14 @@ import Button from './ui/Button';
 import Input from './ui/Input';
 
 const APP_ID = 'option-focus-v2';
-const TASTYTRADE_API = 'https://api.tastytrade.com';
 
-// Pure helpers (no React hooks)
-const getMinutesUntilExpiry = (iso) => {
-  if (!iso) return -1;
-  return (new Date(iso) - new Date()) / 60000;
-};
-
-const getHoursUntilExpiry = (iso) => {
-  if (!iso) return -1;
-  return (new Date(iso) - new Date()) / 3600000;
-};
-
-const isAccessTokenValid = (iso) => {
-  return getMinutesUntilExpiry(iso) > 5; // 5 min buffer
-};
-
-const formatExpiry = (iso, isOAuth = false) => {
-  if (isOAuth) {
-    const m = getMinutesUntilExpiry(iso);
-    if (m < 0) return 'Token 已过期';
-    if (m < 1) return `Token 将在 ${Math.round(m * 60)} 秒后过期`;
-    return `Token 将在 ${Math.round(m)} 分钟后过期`;
-  } else {
-    const h = getHoursUntilExpiry(iso);
-    if (h < 0) return 'Token 已过期';
-    if (h < 1) return `Token 将在 ${Math.round(h * 60)} 分钟后过期`;
-    return `Token 将在 ${h.toFixed(1)} 小时后过期`;
-  }
+// Helper for demo mode expiry display
+const formatDemoExpiry = (iso) => {
+  if (!iso) return '';
+  const h = (new Date(iso) - new Date()) / 3600000;
+  if (h < 0) return 'Token 已过期';
+  if (h < 1) return `Token 将在 ${Math.round(h * 60)} 分钟后过期`;
+  return `Token 将在 ${h.toFixed(1)} 小时后过期`;
 };
 
 function MonitorTab({ user, db, functions }) {
@@ -80,27 +59,20 @@ function MonitorTab({ user, db, functions }) {
           const data = snap.data();
 
           // Demo mode: check session token validity
-          if (data.isDemoMode && isAccessTokenValid(data.sessionExpiration || data.accessTokenExpiry)) {
+          if (data.isDemoMode && data.sessionExpiration && new Date(data.sessionExpiration) > new Date()) {
             setSessionData(data);
             setStatus('connected');
             setIsLoadingCache(false);
             return;
           }
 
-          // OAuth mode: check access token validity
-          if (data.refreshToken) {
-            if (data.accessToken && isAccessTokenValid(data.accessTokenExpiry)) {
-              // Access token still valid
-              setSessionData(data);
-              setStatus('connected');
-              setIsLoadingCache(false);
-              return;
-            } else {
-              // Access token expired or missing — refresh it
-              await refreshAccessToken(data, ref);
-              setIsLoadingCache(false);
-              return;
-            }
+          // OAuth mode: refreshToken exists = connected
+          // access_token is managed server-side, we don't check it here
+          if (data.refreshToken && data.connected) {
+            setSessionData(data);
+            setStatus('connected');
+            setIsLoadingCache(false);
+            return;
           }
 
           // Cleanup: data exists but is invalid
@@ -120,61 +92,8 @@ function MonitorTab({ user, db, functions }) {
     loadCachedToken();
   }, [user, db]);
 
-  // Refresh access token via Cloud Function (clientSecret stays server-side, never sent to client)
-  const refreshAccessToken = async (storedData, firestoreRef) => {
-    try {
-      if (!user) {
-        throw new Error('User not authenticated.');
-      }
-
-      console.log('[refreshAccessToken] Auth user:', user?.uid, 'Refreshing access token...');
-
-      // Get Firebase ID token
-      const idToken = await user.getIdToken();
-
-      // Call Cloud Function as HTTP endpoint
-      const cloudFunctionUrl = 'https://us-central1-option-focus-test.cloudfunctions.net/tastytradeRefreshToken';
-      const response = await fetch(cloudFunctionUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
-          refreshToken: storedData.refreshToken,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `HTTP ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log('[refreshAccessToken] Cloud Function returned:', result);
-
-      // result is { access_token, expires_in }
-      const { access_token, expires_in } = result;
-      const expiry = new Date(Date.now() + expires_in * 1000).toISOString();
-
-      const updated = {
-        ...storedData,
-        accessToken: access_token,
-        accessTokenExpiry: expiry,
-      };
-
-      await setDoc(firestoreRef, updated, { merge: true });
-      setSessionData(updated);
-      setStatus('connected');
-    } catch (e) {
-      console.error('Token refresh failed:', e);
-      setStatus('idle');
-      setError({
-        type: 'oauth',
-        message: `OAuth token 刷新失败: ${e.message}。请重新连接。`,
-      });
-    }
-  };
+  // Cloud Function base URL
+  const CLOUD_FN_BASE = 'https://us-central1-option-focus-test.cloudfunctions.net';
 
   // Handle connection via Cloud Function (clientSecret is server-side only)
   const handleConnect = async (e) => {
@@ -215,19 +134,16 @@ function MonitorTab({ user, db, functions }) {
       return;
     }
 
-    // OAUTH MODE: Call Cloud Function to get access token
-    // Cloud Function handles clientSecret securely (server-side only)
+    // OAUTH MODE: Call Cloud Function to verify refresh token
+    // access_token stays server-side, never returned to browser
     try {
       if (!user) {
         throw new Error('User not authenticated.');
       }
 
-      // Get Firebase ID token for authorization
       const idToken = await user.getIdToken();
 
-      // Call Cloud Function as HTTP endpoint (onRequest, not onCall)
-      const cloudFunctionUrl = 'https://us-central1-option-focus-test.cloudfunctions.net/tastytradeRefreshToken';
-      const response = await fetch(cloudFunctionUrl, {
+      const response = await fetch(`${CLOUD_FN_BASE}/tastytradeRefreshToken`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -244,14 +160,12 @@ function MonitorTab({ user, db, functions }) {
       }
 
       const result = await response.json();
-      const { access_token, expires_in } = result;
-      const accessTokenExpiry = new Date(Date.now() + expires_in * 1000).toISOString();
+      // result is { connected: true, expiresIn: 900 } — NO access_token
 
-      // Store minimal data in Firestore (only refreshToken, not clientSecret/clientId)
+      // Store only refreshToken in Firestore (no access_token)
       const newSessionData = {
         refreshToken: refreshToken.trim(),
-        accessToken: access_token,
-        accessTokenExpiry,
+        connected: true,
         cachedAt: Date.now(),
       };
 
@@ -259,15 +173,13 @@ function MonitorTab({ user, db, functions }) {
         const ref = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'config', 'tastytrade');
         await setDoc(ref, newSessionData, { merge: true });
       } catch (firestoreError) {
-        console.error('Failed to cache OAuth credentials in Firestore:', firestoreError);
-        // Non-fatal: token is usable in-memory
+        console.error('Failed to save connection state:', firestoreError);
       }
 
-      // Update state
       setSessionData(newSessionData);
       setStatus('connected');
-      setRefreshToken(''); // Clear password field
-      setRawResponse({ success: true, access_token_expires_in: expires_in, message: '连接成功' });
+      setRefreshToken('');
+      setRawResponse({ success: true, message: '连接成功（access_token 安全存储在服务端）' });
     } catch (e) {
       console.error('OAuth connection failed:', e);
       setError({
@@ -294,29 +206,37 @@ function MonitorTab({ user, db, functions }) {
   const [apiTestLoading, setApiTestLoading] = useState(false);
 
   const handleTestApi = async () => {
-    if (!sessionData?.accessToken) return;
+    if (!sessionData?.connected || !user) return;
     setApiTestLoading(true);
     setApiTestResult(null);
 
-    const results = {};
-    const headers = {
-      'Authorization': `Bearer ${sessionData.accessToken}`,
-    };
-
-    // Market data: GET /market-data/by-type?equity=SPY
     try {
-      const quoteRes = await fetch(`${TASTYTRADE_API}/market-data/by-type?equity=SPY`, { headers });
-      if (quoteRes.ok) {
-        const quoteData = await quoteRes.json();
-        results.spyQuote = { status: 'ok', data: quoteData.data };
+      const idToken = await user.getIdToken();
+
+      // Call Cloud Function API proxy (access_token stays server-side)
+      const response = await fetch(`${CLOUD_FN_BASE}/tastytradeApiProxy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          path: '/market-data/by-type',
+          query: { equity: 'SPY' },
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setApiTestResult({ status: 'ok', data });
       } else {
-        results.spyQuote = { status: 'error', code: quoteRes.status, text: await quoteRes.text() };
+        const errorData = await response.json();
+        setApiTestResult({ status: 'error', code: response.status, error: errorData });
       }
     } catch (e) {
-      results.spyQuote = { status: 'cors_or_network_error', message: e.message };
+      setApiTestResult({ status: 'network_error', message: e.message });
     }
 
-    setApiTestResult(results);
     setApiTestLoading(false);
   };
 
@@ -548,10 +468,10 @@ function MonitorTab({ user, db, functions }) {
                 </p>
               </div>
             )}
-            {sessionData.accessToken && (
+            {sessionData.connected && (
               <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3">
                 <p className="text-sm text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
-                  <RefreshCw size={14} /> <strong>OAuth 已连接</strong> — 使用 refresh token 自动更新凭据。
+                  <RefreshCw size={14} /> <strong>OAuth 已连接</strong> — access_token 安全存储在服务端。
                 </p>
               </div>
             )}
@@ -584,7 +504,9 @@ function MonitorTab({ user, db, functions }) {
                       : 'text-emerald-600 dark:text-emerald-400'
                   }`}>
                     <Clock size={10} />
-                    {formatExpiry(sessionData.isDemoMode ? sessionData.sessionExpiration : sessionData.accessTokenExpiry, !sessionData.isDemoMode)}
+                    {sessionData.isDemoMode
+                      ? formatDemoExpiry(sessionData.sessionExpiration)
+                      : 'Token 由服务端安全管理'}
                   </div>
                 </div>
               </div>
