@@ -57,6 +57,13 @@ exports.tastytradeRefreshToken = onRequest(
         const CLIENT_ID = clientId.value();
         const CLIENT_SECRET = clientSecret.value();
 
+        console.log('Secret values loaded:', {
+          clientIdExists: !!CLIENT_ID,
+          clientIdLength: CLIENT_ID?.length || 0,
+          clientSecretExists: !!CLIENT_SECRET,
+          clientSecretLength: CLIENT_SECRET?.length || 0,
+        });
+
         if (!CLIENT_ID || !CLIENT_SECRET) {
           console.error('Secrets not configured');
           return res.status(500).json({
@@ -67,6 +74,12 @@ exports.tastytradeRefreshToken = onRequest(
 
         // 4. Call Tastytrade OAuth endpoint
         console.log('Calling Tastytrade OAuth for user:', decodedToken.uid);
+        console.log('Request params:', {
+          grant_type: 'refresh_token',
+          refresh_token: `***${refreshToken.trim().slice(-10)}`,
+          client_id: CLIENT_ID.trim(),
+          client_secret: `***${CLIENT_SECRET.trim().slice(-10)}`,
+        });
 
         const params = new URLSearchParams({
           grant_type: 'refresh_token',
