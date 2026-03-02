@@ -303,22 +303,9 @@ function MonitorTab({ user, db, functions }) {
       'Authorization': `Bearer ${sessionData.accessToken}`,
     };
 
-    // Test 1: /customers/me
+    // Market data: GET /market-data/by-type?equity=SPY
     try {
-      const meRes = await fetch(`${TASTYTRADE_API}/customers/me`, { headers });
-      if (meRes.ok) {
-        const meData = await meRes.json();
-        results.customerMe = { status: 'ok', data: meData.data };
-      } else {
-        results.customerMe = { status: 'error', code: meRes.status, text: await meRes.text() };
-      }
-    } catch (e) {
-      results.customerMe = { status: 'cors_or_network_error', message: e.message };
-    }
-
-    // Test 2: Quote for SPY
-    try {
-      const quoteRes = await fetch(`${TASTYTRADE_API}/market-data/SPY/quotes`, { headers });
+      const quoteRes = await fetch(`${TASTYTRADE_API}/market-data/by-type?equity=SPY`, { headers });
       if (quoteRes.ok) {
         const quoteData = await quoteRes.json();
         results.spyQuote = { status: 'ok', data: quoteData.data };
@@ -616,7 +603,7 @@ function MonitorTab({ user, db, functions }) {
                 {apiTestLoading ? (
                   <><Loader2 size={16} className="animate-spin" /> 测试中...</>
                 ) : (
-                  <><BarChart2 size={16} /> 测试 API（获取用户信息 + SPY 报价）</>
+                  <><BarChart2 size={16} /> 测试 API（获取 SPY 报价）</>
                 )}
               </Button>
             )}
