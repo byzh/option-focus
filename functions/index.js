@@ -74,13 +74,11 @@ exports.tastytradeRefreshToken = onRequest(
         }
 
         // 4. Call Tastytrade OAuth endpoint
-        console.log('Calling Tastytrade OAuth for user:', decodedToken.uid);
-        console.log('Request params:', {
-          grant_type: 'refresh_token',
-          refresh_token: `***${refreshToken.trim().slice(-10)}`,
-          client_id: CLIENT_ID.trim(),
-          client_secret: `***${CLIENT_SECRET.trim().slice(-10)}`,
-        });
+        console.log('=== Tastytrade OAuth Request Debug ===');
+        console.log('User UID:', decodedToken.uid);
+        console.log('CLIENT_ID length:', CLIENT_ID.length);
+        console.log('CLIENT_SECRET length:', CLIENT_SECRET.length);
+        console.log('Refresh Token length:', refreshToken.trim().length);
 
         const params = new URLSearchParams({
           grant_type: 'refresh_token',
@@ -89,13 +87,22 @@ exports.tastytradeRefreshToken = onRequest(
           client_secret: CLIENT_SECRET.trim(),
         });
 
+        const bodyString = params.toString();
+        console.log('URLSearchParams body (first 100 chars):', bodyString.substring(0, 100));
+        console.log('URLSearchParams body length:', bodyString.length);
+        console.log('Request headers:', { 'Content-Type': 'application/x-www-form-urlencoded' });
+
         const oauthRes = await fetch('https://api.tastytrade.com/oauth/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: params.toString(),
+          body: bodyString,
         });
 
+        console.log('Tastytrade response status:', oauthRes.status);
+        console.log('Tastytrade response headers:', Object.fromEntries(oauthRes.headers));
+
         const responseText = await oauthRes.text();
+        console.log('Tastytrade response body (first 500 chars):', responseText.substring(0, 500));
         let tokenData;
 
         try {
