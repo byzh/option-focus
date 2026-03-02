@@ -1,4 +1,5 @@
 // Updated: 2026-03-02 CORS Fix - Switch to onRequest with manual CORS handling
+// Force redeploy to reload secrets from Secret Manager
 const { onRequest } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
