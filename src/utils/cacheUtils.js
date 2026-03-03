@@ -15,25 +15,36 @@ function metaRef(db, collectionName) {
 /**
  * Get data from Firestore cache or fetch fresh.
  * Cache is valid for the current day (same dateKey = hit).
+ *
+ * @param {function} [isValid] - Optional fn(data) => bool. If provided:
+ *   - existing cache that fails validation is deleted before refetching
+ *   - fresh data that fails validation is returned but NOT cached
  */
-export async function getCachedOrFetch(db, collectionName, dateKey, docKey, fetchFn, forceRefresh = false) {
+export async function getCachedOrFetch(db, collectionName, dateKey, docKey, fetchFn, forceRefresh = false, isValid = null) {
   const docRef = cacheDocRef(db, collectionName, dateKey, docKey);
 
   if (!forceRefresh) {
     const snap = await getDoc(docRef);
     if (snap.exists()) {
-      return snap.data();
+      const cached = snap.data();
+      if (!isValid || isValid(cached)) {
+        return cached;
+      }
+      // Stale/invalid cache entry — delete silently and refetch
+      await deleteDoc(docRef).catch(() => {});
     }
   }
 
   const freshData = await fetchFn();
-  const dataToStore = {
-    ...freshData,
-    fetchedAt: new Date().toISOString(),
-  };
 
-  await setDoc(docRef, dataToStore);
-  return dataToStore;
+  if (!isValid || isValid(freshData)) {
+    const dataToStore = { ...freshData, fetchedAt: new Date().toISOString() };
+    await setDoc(docRef, dataToStore);
+    return dataToStore;
+  }
+
+  // Valid fetch but data is empty/invalid — return as-is without caching
+  return freshData;
 }
 
 /**

@@ -63,14 +63,27 @@ export function useOIWall({ user, db }) {
       }
 
       // Try Firestore cache first (OI is EOD — same-day hit is valid)
+      // isValid: only cache when at least one strike has non-zero OI
+      const hasOIData = (data) => {
+        const { fetchedAt: _, ...strikes } = data;
+        return Object.values(strikes).some(s => (s.callOI || 0) + (s.putOI || 0) > 0);
+      };
+
       if (db) {
         const cached = await getCachedOrFetch(
           db, 'oi-cache', today, cacheKey,
           () => fetchOIFromWebSocket(user, expiration, wsRef, timeoutRef),
+          false,
+          hasOIData,
         );
 
         // getCachedOrFetch adds fetchedAt; strip it before returning as OI data
         const { fetchedAt: _, ...oiResult } = cached;
+        if (!hasOIData(cached)) {
+          setError('未收到有效 OI 数据，请重试');
+          setLoading(false);
+          return;
+        }
         await recordCacheDate(db, 'oi-cache', today);
         setOiData(oiResult);
         setLoading(false);
