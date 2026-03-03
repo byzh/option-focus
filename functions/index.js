@@ -5,15 +5,30 @@ const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore } = require('firebase-admin/firestore');
 const { defineSecret } = require('firebase-functions/params');
-const ALLOWED_ORIGINS = [
-  'https://option-focus.web.app',
-  'https://option-focus.firebaseapp.com',
-  'https://option-focus-test.web.app',
-  'https://option-focus-test.firebaseapp.com',
-  // Allow localhost for local dev (emulator / vite dev server)
-  /^http:\/\/localhost(:\d+)?$/,
-];
-const cors = require('cors')({ origin: ALLOWED_ORIGINS });
+const cors = require('cors')({
+  origin: (origin, callback) => {
+    // Allow same-origin / server-to-server calls (no Origin header)
+    if (!origin) return callback(null, true);
+
+    const allowed = [
+      'https://option-focus.web.app',
+      'https://option-focus.firebaseapp.com',
+      'https://option-focus-test.web.app',
+      'https://option-focus-test.firebaseapp.com',
+    ];
+
+    if (
+      allowed.includes(origin) ||
+      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
+      /^https:\/\/option-focus[\w-]*\.vercel\.app$/.test(origin)
+    ) {
+      return callback(null, true);
+    }
+
+    console.warn('CORS blocked origin:', origin);
+    return callback(new Error(`Origin ${origin} not allowed`));
+  },
+});
 
 // Initialize admin SDK once (singleton)
 initializeApp();
