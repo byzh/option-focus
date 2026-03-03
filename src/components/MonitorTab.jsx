@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Wifi, WifiOff, Loader2, AlertTriangle, ChevronUp, Clock, User, BarChart2, BookOpen, ExternalLink, RefreshCw } from 'lucide-react';
+import { Wifi, WifiOff, Loader2, AlertTriangle, ChevronUp, Clock, User, BookOpen, ExternalLink, RefreshCw } from 'lucide-react';
+import MarketScanner from './MarketScanner';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import Card from './ui/Card';
 import Button from './ui/Button';
@@ -199,45 +200,6 @@ function MonitorTab({ user, db, functions }) {
     } catch (e) {
       console.error('Failed to delete stored token:', e);
     }
-  };
-
-  // Test API: fetch /customers/me and a sample quote
-  const [apiTestResult, setApiTestResult] = useState(null);
-  const [apiTestLoading, setApiTestLoading] = useState(false);
-
-  const handleTestApi = async () => {
-    if (!sessionData?.connected || !user) return;
-    setApiTestLoading(true);
-    setApiTestResult(null);
-
-    try {
-      const idToken = await user.getIdToken();
-
-      // Call Cloud Function API proxy (access_token stays server-side)
-      const response = await fetch(`${CLOUD_FN_BASE}/tastytradeApiProxy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
-          path: '/market-data/by-type',
-          query: { equity: 'SPY' },
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setApiTestResult({ status: 'ok', data });
-      } else {
-        const errorData = await response.json();
-        setApiTestResult({ status: 'error', code: response.status, error: errorData });
-      }
-    } catch (e) {
-      setApiTestResult({ status: 'network_error', message: e.message });
-    }
-
-    setApiTestLoading(false);
   };
 
   // Handle disconnection
@@ -519,27 +481,6 @@ function MonitorTab({ user, db, functions }) {
               </span>
             </div>
 
-            {/* Test API button */}
-            {!sessionData.isDemoMode && (
-              <Button onClick={handleTestApi} disabled={apiTestLoading} className="w-full">
-                {apiTestLoading ? (
-                  <><Loader2 size={16} className="animate-spin" /> 测试中...</>
-                ) : (
-                  <><BarChart2 size={16} /> 测试 API（获取 SPY 报价）</>
-                )}
-              </Button>
-            )}
-
-            {/* API Test Results */}
-            {apiTestResult && (
-              <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 space-y-2">
-                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">API 测试结果：</p>
-                <pre className="text-[11px] bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 p-2 rounded overflow-auto max-h-64">
-                  {JSON.stringify(apiTestResult, null, 2)}
-                </pre>
-              </div>
-            )}
-
             {/* Disconnect button */}
             <Button variant="danger" onClick={handleDisconnect} className="w-full">
               <WifiOff size={16} /> 断开连接
@@ -571,14 +512,10 @@ function MonitorTab({ user, db, functions }) {
         )}
       </Card>
 
-      {/* Placeholder for future modules */}
-      <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-8 text-center">
-        <div className="text-slate-400 dark:text-slate-500">
-          <BarChart2 size={32} className="mx-auto mb-3 opacity-40" />
-          <p className="text-sm font-medium">行情扫描模块</p>
-          <p className="text-xs mt-1">即将上线 — 需要先完成 API 连接</p>
-        </div>
-      </div>
+      {/* Market Scanner — shown when connected (non-demo) */}
+      {status === 'connected' && !sessionData?.isDemoMode && (
+        <MarketScanner user={user} db={db} />
+      )}
     </div>
   );
 }

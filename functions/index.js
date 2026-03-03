@@ -24,6 +24,8 @@ const ALLOWED_PATHS = [
   '/market-data/by-type',
   '/instruments/equities',
   '/option-chains/',
+  '/market-metrics',
+  '/api-quote-tokens',
 ];
 
 // Helper: verify Firebase Auth from request
