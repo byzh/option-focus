@@ -17,8 +17,11 @@ export function useOIWall({ user, db }) {
   const [error, setError] = useState(null);
   const wsRef = useRef(null);
   const timeoutRef = useRef(null);
+  // Incremented on every fetchOI call; stale calls bail out before touching state
+  const fetchIdRef = useRef(0);
 
   const clearOI = useCallback(() => {
+    fetchIdRef.current += 1; // invalidate any in-flight fetchOI
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
@@ -34,6 +37,9 @@ export function useOIWall({ user, db }) {
 
   const fetchOI = useCallback(async (symbol, expiration) => {
     if (!user || !expiration) return;
+
+    // Claim a unique ID for this invocation
+    const myId = ++fetchIdRef.current;
 
     // Close any previous WebSocket
     if (wsRef.current) {
@@ -53,17 +59,19 @@ export function useOIWall({ user, db }) {
     const today = getLocalTodayString();
     const cacheKey = `${symbol}-${expirationDate}`;
 
+    // Helper: only settle state if this call is still the latest
+    const isStale = () => fetchIdRef.current !== myId;
+
     try {
-      // Build symbol map from strikes (needed for WebSocket, and to validate cache)
       const strikeList = Array.isArray(expiration.strikes) ? expiration.strikes : [];
       if (strikeList.length === 0) {
+        if (isStale()) return;
         setError('该到期日无行权价数据');
         setLoading(false);
         return;
       }
 
-      // Try Firestore cache first (OI is EOD — same-day hit is valid)
-      // isValid: only cache when at least one strike has non-zero OI
+      // Only cache when at least one strike has non-zero OI
       const hasOIData = (data) => {
         const { fetchedAt: _, ...strikes } = data;
         return Object.values(strikes).some(s => (s.callOI || 0) + (s.putOI || 0) > 0);
@@ -77,7 +85,8 @@ export function useOIWall({ user, db }) {
           hasOIData,
         );
 
-        // getCachedOrFetch adds fetchedAt; strip it before returning as OI data
+        if (isStale()) return; // a newer fetchOI was called while we were awaiting
+
         const { fetchedAt: _, ...oiResult } = cached;
         if (!hasOIData(cached)) {
           setError('未收到有效 OI 数据，请重试');
@@ -85,15 +94,17 @@ export function useOIWall({ user, db }) {
           return;
         }
         await recordCacheDate(db, 'oi-cache', today);
+        if (isStale()) return;
         setOiData(oiResult);
         setLoading(false);
       } else {
-        // No db: fetch directly without caching
         const result = await fetchOIFromWebSocket(user, expiration, wsRef, timeoutRef);
+        if (isStale()) return;
         setOiData(result);
         setLoading(false);
       }
     } catch (e) {
+      if (isStale()) return;
       setError(e.message);
       setLoading(false);
     }
@@ -235,8 +246,12 @@ function fetchOIFromWebSocket(user, expiration, wsRef, timeoutRef) {
         clearTimeout(hardTimeout);
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         wsRef.current = null;
-        if (Object.keys(collected).length > 0) resolve({ ...collected });
-        // If nothing collected and already rejected/resolved, Promise ignores second call
+        if (Object.keys(collected).length > 0) {
+          resolve({ ...collected });
+        } else {
+          // Always reject so the awaiting fetchOI call fails fast (no hung Promise)
+          reject(new Error('连接已中断'));
+        }
       };
 
     } catch (e) {
