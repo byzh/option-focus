@@ -19,7 +19,7 @@ const cors = require('cors')({
 
     if (
       allowed.includes(origin) ||
-      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
+      /^http:\/\/localhost(:\d+)?$/.test(origin) ||
       /^https:\/\/option-focus[\w-]*\.vercel\.app$/.test(origin)
     ) {
       return callback(null, true);
