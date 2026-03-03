@@ -486,8 +486,8 @@ function MonitorTab({ user, db, functions }) {
               <WifiOff size={16} /> 断开连接
             </Button>
 
-            {/* Raw response (collapsible) */}
-            {rawResponse && (
+            {/* Raw response (dev only) */}
+            {import.meta.env.DEV && rawResponse && (
               <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
                 <button
                   onClick={() => setIsRawExpanded(v => !v)}

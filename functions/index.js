@@ -5,7 +5,15 @@ const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore } = require('firebase-admin/firestore');
 const { defineSecret } = require('firebase-functions/params');
-const cors = require('cors')({ origin: true });
+const ALLOWED_ORIGINS = [
+  'https://option-focus.web.app',
+  'https://option-focus.firebaseapp.com',
+  'https://option-focus-test.web.app',
+  'https://option-focus-test.firebaseapp.com',
+  // Allow localhost for local dev (emulator / vite dev server)
+  /^http:\/\/localhost(:\d+)?$/,
+];
+const cors = require('cors')({ origin: ALLOWED_ORIGINS });
 
 // Initialize admin SDK once (singleton)
 initializeApp();
@@ -228,7 +236,13 @@ exports.tastytradeApiProxy = onRequest(
           });
         }
 
-        // 3. Security: check whitelist
+        // 3. Security: reject path traversal, then check whitelist
+        if (path.includes('..') || path.includes('//')) {
+          return res.status(403).json({
+            error: 'permission-denied',
+            message: 'Invalid path',
+          });
+        }
         const isAllowed = ALLOWED_PATHS.some(allowed => path.startsWith(allowed));
         if (!isAllowed) {
           return res.status(403).json({

@@ -44,7 +44,7 @@ export function useMarketScanner({ user, db }) {
           db,
           'market-metrics',
           today,
-          `batch-${i}`,
+          `${user.uid}-batch-${i}`,
           async () => {
             const response = await callTastytradeApi(user, '/market-metrics', {
               symbols: batch.join(','),
