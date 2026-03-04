@@ -95,28 +95,28 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, con
 
         {/* History section */}
         {isHistoryExpanded && (
-          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 text-sm">
-            <div className="text-xs font-bold text-slate-400 mb-2 flex items-center gap-1"><History size={12} /> 交易历史 (Transaction History)</div>
+          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 text-sm overflow-hidden">
+            <div className="text-xs font-bold text-slate-400 mb-2 flex items-center gap-1"><History size={12} /> 交易历史</div>
             {history.map((h, idx) => {
               let label = "", val = 0, isCredit = false;
               if (h.isInitial) {
-                label = `初始开仓 (Initial Open) $${h.initialStrike} (${h.initialExpiration}) ${item.type}`;
+                label = `初始开仓 $${h.initialStrike} (${h.initialExpiration}) ${item.type}`;
                 if (item.direction === 'SELL') { val = -Math.abs(item.entryPrice); isCredit = true; } else { val = Math.abs(item.entryPrice); isCredit = false; }
               } else if (h.action === 'CLOSE') {
                 label = '平仓 (Close)';
                 val = item.direction === 'SELL' ? Math.abs(h.closePrice) : -Math.abs(h.closePrice); isCredit = val < 0;
               } else if (h.action === 'AUTO_EXPIRE') {
-                label = '自动过期 (Auto Expired)';
+                label = '自动过期';
                 val = 0; isCredit = false;
               } else if (h.action === 'ROLL') {
-                label = `展期 (Roll) to ${h.newExpiration} $${h.newStrike}`;
+                label = `展期 → ${h.newExpiration} $${h.newStrike}`;
                 val = h.rollPrice; isCredit = val < 0;
               }
               return (
-                <div key={idx} className="flex justify-between py-1 border-b border-dashed border-slate-100 dark:border-slate-800 last:border-0">
-                  <span className="text-slate-500 text-xs font-mono w-20">{h.date}</span>
-                  <span className="flex-1 truncate px-2 text-slate-600 dark:text-slate-300">{label}</span>
-                  <span className={`font-mono ${isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{val > 0 ? '+' : ''}{val.toFixed(2)}</span>
+                <div key={idx} className="flex items-center py-1 border-b border-dashed border-slate-100 dark:border-slate-800 last:border-0 min-w-0">
+                  <span className="text-slate-500 text-xs font-mono shrink-0 w-20">{h.date}</span>
+                  <span className="flex-1 truncate min-w-0 px-2 text-slate-600 dark:text-slate-300 text-xs">{label}</span>
+                  <span className={`font-mono text-xs shrink-0 ${isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{val > 0 ? '+' : ''}{val.toFixed(2)}</span>
                 </div>
               );
             })}
