@@ -193,11 +193,12 @@ export default function MarketScanner({ user, db }) {
     const dd = String(d.getDate()).padStart(2, '0');
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const yyyy = d.getFullYear();
+    const tod = item.earnings?.['time-of-day'] || null;
     return {
       label: `${dd}/${mm}/${yyyy}`,
       daysAway: diffDays,
       isPast: diffDays < 0,
-      timeOfDay: item.earnings?.['time-of-day'] || null,
+      timeOfDay: tod,
       estimated: item.earnings?.estimated !== false,
     };
   };
@@ -405,28 +406,22 @@ export default function MarketScanner({ user, db }) {
                         {(() => {
                           const e = fmtEarnings(item);
                           if (!e) return <span className="text-slate-400">—</span>;
+                          const tod = e.timeOfDay?.toUpperCase();
+                          const todLabel = (tod === 'BTO' || tod === 'BMO') ? '盘前' : tod === 'AMC' ? '盘后' : null;
                           if (e.isPast) {
-                            // No upcoming date yet — show last earnings in muted style
-                            const tod = e.timeOfDay ? ` ${e.timeOfDay}` : '';
                             return (
-                              <span
-                                className="font-mono text-[11px] text-slate-400 dark:text-slate-500"
-                                title={`上次财报${tod}（${Math.abs(e.daysAway)}天前）`}
-                              >
-                                ~{e.label}
+                              <span className="font-mono text-[11px] text-slate-400 dark:text-slate-500" title={`上次财报（${Math.abs(e.daysAway)}天前）`}>
+                                ~{e.label}{todLabel && <span className="ml-1 text-[9px] opacity-70">{todLabel}</span>}
                               </span>
                             );
                           }
                           // Upcoming earnings date
                           const soon = e.daysAway <= 14;
-                          const tod = e.timeOfDay ? ` ${e.timeOfDay}` : '';
                           const est = e.estimated ? '（预估）' : '';
                           return (
-                            <span
-                              className={`font-mono text-[11px] ${soon ? 'text-amber-500 dark:text-amber-400 font-semibold' : 'text-slate-600 dark:text-slate-300'}`}
-                              title={`下次财报${tod}${est}（${e.daysAway}天后）`}
-                            >
+                            <span className={`font-mono text-[11px] ${soon ? 'text-amber-500 dark:text-amber-400 font-semibold' : 'text-slate-600 dark:text-slate-300'}`} title={`下次财报${est}（${e.daysAway}天后）`}>
                               {e.label}{soon && <span className="ml-0.5 text-[9px]">!</span>}
+                              {todLabel && <span className={`ml-1 text-[9px] px-0.5 rounded ${soon ? 'opacity-80' : 'text-slate-400 dark:text-slate-500'}`}>{todLabel}</span>}
                             </span>
                           );
                         })()}
