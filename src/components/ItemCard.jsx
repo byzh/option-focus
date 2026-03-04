@@ -53,7 +53,7 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, con
     return (
       <Card className={`p-4 hover:shadow-md transition-shadow ${isClosed ? 'opacity-75 bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800' : isExpired ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30' : ''}`}>
         {/* Top row: position info + P&L */}
-        <div className="flex justify-between items-start gap-2">
+        <div className="flex justify-between items-center gap-2">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
               <span className={`px-2 py-0.5 text-xs font-bold rounded shrink-0 ${item.direction === 'BUY' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'}`}>{item.direction === 'BUY' ? 'LONG' : 'SHORT'}</span>
