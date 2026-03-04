@@ -356,7 +356,7 @@ export default function MarketScanner({ user, db }) {
                   <span className="inline-flex items-center gap-1 justify-end">IV百分位 <SortIcon colKey="implied-volatility-percentile" /></span>
                 </th>
                 <th className="text-right px-3 py-2 font-semibold cursor-pointer hover:text-slate-700 dark:hover:text-slate-200 select-none" onClick={() => handleSort('liquidity-rating')}>
-                  <span className="inline-flex items-center gap-1 justify-end">Liq <SortIcon colKey="liquidity-rating" /></span>
+                  <span className="inline-flex items-center gap-1 justify-end">Liquidity <SortIcon colKey="liquidity-rating" /></span>
                 </th>
                 <th className="text-right px-3 py-2 font-semibold">财报</th>
                 <th className="w-8"></th>
