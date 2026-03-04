@@ -153,6 +153,15 @@ export default function MarketScanner({ user, db }) {
     if (sortKey === 'symbol') {
       return sortAsc ? a.symbol.localeCompare(b.symbol) : b.symbol.localeCompare(a.symbol);
     }
+    if (sortKey === 'earnings-date') {
+      const da = a.earnings?.['expected-report-date'] || '';
+      const db_ = b.earnings?.['expected-report-date'] || '';
+      // Empty dates go to end regardless of sort direction
+      if (!da && !db_) return 0;
+      if (!da) return 1;
+      if (!db_) return -1;
+      return sortAsc ? da.localeCompare(db_) : db_.localeCompare(da);
+    }
     const va = parseFloat(a[sortKey]) || 0;
     const vb = parseFloat(b[sortKey]) || 0;
     return sortAsc ? va - vb : vb - va;
@@ -358,7 +367,9 @@ export default function MarketScanner({ user, db }) {
                 <th className="text-right px-3 py-2 font-semibold cursor-pointer hover:text-slate-700 dark:hover:text-slate-200 select-none" onClick={() => handleSort('liquidity-rating')}>
                   <span className="inline-flex items-center gap-1 justify-end">Liquidity <SortIcon colKey="liquidity-rating" /></span>
                 </th>
-                <th className="text-right px-3 py-2 font-semibold">财报</th>
+                <th className="text-right px-3 py-2 font-semibold cursor-pointer hover:text-slate-700 dark:hover:text-slate-200 select-none" onClick={() => handleSort('earnings-date')}>
+                  <span className="inline-flex items-center gap-1 justify-end">财报 <SortIcon colKey="earnings-date" /></span>
+                </th>
                 <th className="w-8"></th>
               </tr>
             </thead>
