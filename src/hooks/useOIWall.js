@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { callTastytradeApi } from '../utils/apiClient';
-import { getCachedOrFetch, recordCacheDate } from '../utils/cacheUtils';
+import { getCachedOrFetch } from '../utils/cacheUtils';
 import { getLocalTodayString } from '../utils/dateUtils';
 
 /**
@@ -93,7 +93,6 @@ export function useOIWall({ user, db }) {
           setLoading(false);
           return;
         }
-        await recordCacheDate(db, 'oi-cache', today);
         if (isStale()) return;
         setOiData(oiResult);
         setLoading(false);
@@ -134,7 +133,7 @@ function fetchOIFromWebSocket(user, expiration, wsRef, timeoutRef) {
       const symbolMap = {};
 
       strikeList.forEach(strike => {
-        const price = String(strike['strike-price']);
+        const price = String(parseFloat(strike['strike-price']));
         if (strike['call-streamer-symbol']) {
           subscriptions.push({ type: 'Summary', symbol: strike['call-streamer-symbol'] });
           symbolMap[strike['call-streamer-symbol']] = { price, side: 'call' };

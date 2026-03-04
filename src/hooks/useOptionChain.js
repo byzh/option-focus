@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { callTastytradeApi } from '../utils/apiClient';
-import { getCachedOrFetch, recordCacheDate } from '../utils/cacheUtils';
+import { getCachedOrFetch } from '../utils/cacheUtils';
 import { getLocalTodayString } from '../utils/dateUtils';
 
 export function useOptionChain({ user, db }) {
@@ -31,8 +31,6 @@ export function useOptionChain({ user, db }) {
         },
         forceRefresh
       );
-
-      await recordCacheDate(db, 'option-chains', today);
 
       // Filter expirations by DTE
       const now = new Date();

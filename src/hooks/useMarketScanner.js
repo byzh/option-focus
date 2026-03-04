@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { callTastytradeApi } from '../utils/apiClient';
-import { getCachedOrFetch, cleanupOldCache, recordCacheDate } from '../utils/cacheUtils';
+import { getCachedOrFetch } from '../utils/cacheUtils';
 import { getLocalTodayString } from '../utils/dateUtils';
 import { BATCH_SIZE, BATCH_DELAY_MS } from '../data/defaultSymbols';
 
@@ -32,9 +32,6 @@ export function useMarketScanner({ user, db }) {
     const collected = [];
 
     try {
-      // Fire-and-forget cleanup
-      cleanupOldCache(db, 'market-metrics').catch(e => console.warn('Cache cleanup:', e));
-
       for (let i = 0; i < batches.length; i++) {
         if (abortRef.current) break;
 
@@ -53,8 +50,6 @@ export function useMarketScanner({ user, db }) {
           },
           forceRefresh
         );
-
-        await recordCacheDate(db, 'market-metrics', today);
 
         const items = Array.isArray(data.items) ? data.items : [];
         collected.push(...items);
