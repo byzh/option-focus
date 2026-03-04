@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import {
   ScanSearch, Filter, RefreshCw, Loader2, ChevronDown,
-  Square, Settings2, RotateCcw, TrendingUp, ChevronRight, ArrowUp, ArrowDown,
+  Square, Settings2, RotateCcw, TrendingUp, ChevronRight, ArrowUp, ArrowDown, RotateCw,
 } from 'lucide-react';
 import Card from './ui/Card';
 import Button from './ui/Button';
@@ -437,6 +437,7 @@ export default function MarketScanner({ user, db }) {
                               setSelectedExpIdx(idx);
                               fetchOI(sym, exp);
                             }}
+                            onRefreshOI={(exp) => fetchOI(sym, exp, true)}
                             oiData={oiData}
                             oiLoading={oiLoading}
                             oiError={oiError}
@@ -466,7 +467,7 @@ export default function MarketScanner({ user, db }) {
 // Option chain detail sub-component
 function OptionChainDetail({
   symbol, chainData, chainLoading, chainError,
-  selectedExpIdx, onSelectExp,
+  selectedExpIdx, onSelectExp, onRefreshOI,
   oiData, oiLoading, oiError,
   underlyingPrice,
 }) {
@@ -510,12 +511,26 @@ function OptionChainDetail({
 
       {/* OI Wall for selected expiration */}
       {selExp && (
-        <OIWallChart
-          oiData={oiData}
-          loading={oiLoading}
-          error={oiError}
-          underlyingPrice={underlyingPrice}
-        />
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">OI Wall</span>
+            <button
+              onClick={() => onRefreshOI(selExp)}
+              disabled={oiLoading}
+              className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="强制重新拉取 OI 数据（跳过缓存）"
+            >
+              <RotateCw size={11} className={oiLoading ? 'animate-spin' : ''} />
+              刷新
+            </button>
+          </div>
+          <OIWallChart
+            oiData={oiData}
+            loading={oiLoading}
+            error={oiError}
+            underlyingPrice={underlyingPrice}
+          />
+        </div>
       )}
     </div>
   );

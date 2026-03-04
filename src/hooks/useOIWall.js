@@ -35,7 +35,7 @@ export function useOIWall({ user, db }) {
     setLoading(false);
   }, []);
 
-  const fetchOI = useCallback(async (symbol, expiration) => {
+  const fetchOI = useCallback(async (symbol, expiration, forceRefresh = false) => {
     if (!user || !expiration) return;
 
     // Claim a unique ID for this invocation
@@ -81,7 +81,7 @@ export function useOIWall({ user, db }) {
         const cached = await getCachedOrFetch(
           db, 'oi-cache', today, cacheKey,
           () => fetchOIFromWebSocket(user, expiration, wsRef, timeoutRef),
-          false,
+          forceRefresh,
           hasOIData,
         );
 
