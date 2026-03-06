@@ -23,5 +23,5 @@ export const isExpired = (expirationDate) => {
   const now = new Date();
   exp.setHours(0, 0, 0, 0);
   now.setHours(0, 0, 0, 0);
-  return now >= exp;
+  return now > exp;
 };
