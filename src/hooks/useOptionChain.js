@@ -8,7 +8,7 @@ export function useOptionChain({ user, db }) {
   const [chainLoading, setChainLoading] = useState(false);
   const [chainError, setChainError] = useState(null);
 
-  const fetchChain = useCallback(async (symbol, { minDTE = 7, maxDTE = 45 } = {}, forceRefresh = false) => {
+  const fetchChain = useCallback(async (symbol, { minDTE = 0, maxDTE = 45 } = {}, forceRefresh = false) => {
     if (!user || !db) return;
 
     setChainLoading(true);
