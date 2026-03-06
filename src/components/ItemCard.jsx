@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import {
   Archive, AlertTriangle, RefreshCw, StopCircle,
-  History, ChevronUp, Edit3, Trash2, CheckSquare, ArrowRight
+  History, ChevronUp, Edit3, Trash2, CheckSquare, ArrowRight, RotateCcw
 } from 'lucide-react';
 import { calcNetBasis, calcFinalPnL, calcBreakEven } from '../calc';
 import { isExpiredByTwoDays } from '../utils/dateUtils';
 import Card from './ui/Card';
 import Button from './ui/Button';
 
-function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, concentration = 0 }) {
+function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onReopen, concentration = 0 }) {
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
 
   if (type === 'portfolio') {
@@ -105,6 +105,8 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, con
               } else if (h.action === 'CLOSE') {
                 label = '平仓 (Close)';
                 val = item.direction === 'SELL' ? Math.abs(h.closePrice) : -Math.abs(h.closePrice); isCredit = val < 0;
+              } else if (h.action === 'REOPEN') {
+                label = '重新开仓'; val = 0; isCredit = false;
               } else if (h.action === 'AUTO_EXPIRE') {
                 label = '自动过期';
                 val = 0; isCredit = false;
@@ -131,6 +133,7 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, con
               <button onClick={() => onDirectAction(item, 'CLOSE')} className="p-1.5 text-slate-500 bg-slate-100 dark:bg-slate-700 rounded hover:bg-slate-200" title="平仓 (Close)"><StopCircle size={16} /></button>
             </>
           )}
+          {isClosed && <button onClick={() => onReopen(item)} className="p-1.5 text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 rounded hover:bg-emerald-100" title="重新开仓"><RotateCcw size={16} /></button>}
           {(history.length > 1 || isClosed) && <button onClick={() => setIsHistoryExpanded(!isHistoryExpanded)} className="p-1.5 text-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 rounded hover:bg-indigo-100">{isHistoryExpanded ? <ChevronUp size={16} /> : <History size={16} />}</button>}
           <button onClick={() => onEdit(item)} className="p-1.5 text-blue-500 bg-blue-50 dark:bg-blue-900/20 rounded hover:bg-blue-100"><Edit3 size={16} /></button>
           <button onClick={() => onDelete(item.id, 'portfolio')} className="p-1.5 text-rose-500 bg-rose-50 dark:bg-rose-900/20 rounded hover:bg-rose-100"><Trash2 size={16} /></button>

@@ -242,6 +242,20 @@ export default function App() {
     setExecutionPlan({ ...position, actionCategory, selectedPositionId: position.id, isDirect: true, newStrike: position.strike, newExpirationPeriod: '' });
   };
 
+  const handleReopen = async (position) => {
+    const today = getLocalTodayString();
+    try {
+      await updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', position.id), {
+        status: 'OPEN',
+        closePrice: null,
+        dateClosed: null,
+        history: [{ date: today, action: 'REOPEN', notes: '重新开仓' }, ...(position.history || [])],
+      });
+    } catch (e) {
+      console.error('Failed to reopen position:', e);
+    }
+  };
+
   const handleExecutionConfirm = async (plan, execData) => {
     const today = getLocalTodayString();
     setIsExecuting(true);
@@ -570,7 +584,7 @@ export default function App() {
                           {agg.items.sort((a, b) => (b.expiration || '').localeCompare(a.expiration || '')).map(item => {
                             const concentration = item.type === 'PUT' && item.direction === 'SELL' ? getTickerConcentration(item.ticker) : 0;
                             return (
-                              <ItemCard key={item.id} item={item} type={activeTab} onEdit={openEdit} onDelete={deleteItem} onExecute={() => setExecutionPlan(item)} onDirectAction={handleDirectAction} concentration={concentration} />
+                              <ItemCard key={item.id} item={item} type={activeTab} onEdit={openEdit} onDelete={deleteItem} onExecute={() => setExecutionPlan(item)} onDirectAction={handleDirectAction} onReopen={handleReopen} concentration={concentration} />
                             );
                           })}
                         </div>
@@ -596,6 +610,7 @@ export default function App() {
                     key={item.id} item={item} type={activeTab} onEdit={openEdit} onDelete={deleteItem}
                     onExecute={() => setExecutionPlan(item)}
                     onDirectAction={handleDirectAction}
+                    onReopen={handleReopen}
                     concentration={concentration}
                   />
                 );
