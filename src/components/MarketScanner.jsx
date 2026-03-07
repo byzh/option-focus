@@ -389,7 +389,7 @@ export default function MarketScanner({ user, db }) {
                   <React.Fragment key={sym}>
                     <tr
                       onClick={() => handleRowClick(sym)}
-                      className={`border-t border-slate-100 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors ${isExpanded ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
+                      className={`border-t border-slate-100 dark:border-slate-700 cursor-pointer hover:shadow-md hover:relative hover:z-10 transition-shadow ${isExpanded ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
                     >
                       <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200">
                         <div className="flex items-center gap-1.5">
