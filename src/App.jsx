@@ -614,7 +614,7 @@ export default function App() {
                   const getDays = (item) => item.expiration ? Math.ceil((new Date(item.expiration + 'T00:00:00') - today) / 86400000) : Infinity;
                   return (getDays(a) - getDays(b)) * dir;
                 }
-                return (a.expiration || '').localeCompare(b.expiration || '') * dir;
+                return (b.dateOpened || '').localeCompare(a.dateOpened || '') * dir;
               }).map(item => {
                 const concentration = item.type === 'PUT' && item.direction === 'SELL' ? getTickerConcentration(item.ticker) : 0;
                 return (
