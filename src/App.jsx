@@ -585,7 +585,12 @@ export default function App() {
                       </button>
                       {expandedTickers.has(agg.ticker) && (
                         <div className="mt-2 space-y-2 pl-2 border-l-2 border-slate-200 dark:border-slate-700">
-                          {agg.items.sort((a, b) => (b.expiration || '').localeCompare(a.expiration || '')).map(item => {
+                          {agg.items.sort((a, b) => {
+                              const aClosed = a.status === 'CLOSED';
+                              const bClosed = b.status === 'CLOSED';
+                              if (aClosed !== bClosed) return aClosed ? 1 : -1;
+                              return (a.expiration || '').localeCompare(b.expiration || '');
+                            }).map(item => {
                             const concentration = item.type === 'PUT' && item.direction === 'SELL' ? getTickerConcentration(item.ticker) : 0;
                             return (
                               <ItemCard key={item.id} item={item} type={activeTab} onEdit={openEdit} onDelete={deleteItem} onExecute={() => setExecutionPlan(item)} onDirectAction={handleDirectAction} onReopen={handleReopen} concentration={concentration} />
