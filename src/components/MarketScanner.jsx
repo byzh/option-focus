@@ -9,6 +9,7 @@ import Button from './ui/Button';
 import { useMarketScanner } from '../hooks/useMarketScanner';
 import { useOptionChain } from '../hooks/useOptionChain';
 import { useOIWall } from '../hooks/useOIWall';
+import { useSkewHistory } from '../hooks/useSkewHistory';
 import { DEFAULT_SYMBOLS } from '../data/defaultSymbols';
 import { callTastytradeApi } from '../utils/apiClient';
 
@@ -33,6 +34,9 @@ export default function MarketScanner({ user, db }) {
 
   // OI wall hook
   const { oiData, loading: oiLoading, error: oiError, fetchOI, clearOI } = useOIWall({ user, db });
+
+  // Skew history hook
+  const { skewHistory, skewLoading, skewError, fetchAndStoreSkew, loadSkewHistory, clearSkew } = useSkewHistory({ user, db });
 
   // Sorting
   const [sortKey, setSortKey] = useState('implied-volatility-index-rank');
@@ -126,15 +130,18 @@ export default function MarketScanner({ user, db }) {
       setExpandedSymbol(null);
       clearChain();
       clearOI();
+      clearSkew();
       setSelectedExpIdx(0);
       setUnderlyingPrice(null);
     } else {
       setExpandedSymbol(symbol);
       setSelectedExpIdx(0);
       clearOI();
+      clearSkew();
       setUnderlyingPrice(null);
       fetchChain(symbol);
       fetchUnderlyingPrice(symbol);
+      loadSkewHistory(symbol);
     }
   };
 
@@ -420,7 +427,7 @@ export default function MarketScanner({ user, db }) {
                           const est = e.estimated ? '（预估）' : '';
                           return (
                             <span className={`font-mono text-[11px] ${soon ? 'text-amber-500 dark:text-amber-400 font-semibold' : 'text-slate-600 dark:text-slate-300'}`} title={`下次财报${est}（${e.daysAway}天后）`}>
-                              {e.label}{soon && <span className="ml-0.5 text-[9px]">!</span>}
+                              {e.label}
                               {todLabel && <span className={`ml-1 text-[9px] px-0.5 rounded ${soon ? 'opacity-80' : 'text-slate-400 dark:text-slate-500'}`}>{todLabel}</span>}
                             </span>
                           );
@@ -443,12 +450,16 @@ export default function MarketScanner({ user, db }) {
                             onSelectExp={(idx, exp) => {
                               setSelectedExpIdx(idx);
                               fetchOI(sym, exp);
+                              fetchAndStoreSkew(sym, exp);
                             }}
                             onRefreshOI={(exp) => fetchOI(sym, exp, true)}
                             oiData={oiData}
                             oiLoading={oiLoading}
                             oiError={oiError}
                             underlyingPrice={underlyingPrice}
+                            skewHistory={skewHistory}
+                            skewLoading={skewLoading}
+                            skewError={skewError}
                           />
                         </td>
                       </tr>
@@ -476,6 +487,7 @@ export default function MarketScanner({ user, db }) {
 function OptionChainDetail({
   symbol, chainData, chainLoading, chainError,
   selectedExpIdx, onSelectExp, onRefreshOI,
+  skewHistory, skewLoading, skewError,
   oiData, oiLoading, oiError,
   underlyingPrice,
 }) {
@@ -540,6 +552,9 @@ function OptionChainDetail({
           />
         </div>
       )}
+
+      {/* 25-delta Risk Reversal (Put Skew) history chart */}
+      <SkewChart history={skewHistory} loading={skewLoading} error={skewError} />
     </div>
   );
 }
@@ -671,6 +686,120 @@ function OIWallChart({ oiData, loading, error, underlyingPrice }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// 25-delta Risk Reversal history chart (pure SVG)
+// Displays put25dIV - call25dIV over the past 10 days
+function SkewChart({ history, loading, error }) {
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-slate-400 py-1 mt-2">
+        <Loader2 size={12} className="animate-spin" /> 计算 Put Skew...
+      </div>
+    );
+  }
+
+  const hasData = Array.isArray(history) && history.length > 0;
+
+  const latestFetchedAt = hasData
+    ? (() => {
+        const ts = history[history.length - 1]?.fetchedAt;
+        if (!ts) return null;
+        const d = new Date(ts);
+        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      })()
+    : null;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
+          25Δ Risk Reversal (Put − Call IV)
+        </span>
+        {latestFetchedAt && (
+          <span className="text-[9px] text-slate-400">更新于 {latestFetchedAt}</span>
+        )}
+      </div>
+      {error && <div className="text-[10px] text-amber-500">{error}</div>}
+      {!hasData && !error && (
+        <div className="text-[10px] text-slate-400 italic">选择到期日后自动计算并记录</div>
+      )}
+      {hasData && (() => {
+        const W = 280, H = 56, PAD_L = 32, PAD_R = 8, PAD_T = 6, PAD_B = 16;
+        const plotW = W - PAD_L - PAD_R;
+        const plotH = H - PAD_T - PAD_B;
+
+        const values = history.map(e => e.rr);
+        const minV = Math.min(...values);
+        const maxV = Math.max(...values);
+        const range = maxV - minV || 0.01;
+
+        const toX = (i) => PAD_L + (i / (history.length - 1 || 1)) * plotW;
+        const toY = (v) => PAD_T + plotH - ((v - minV) / range) * plotH;
+
+        const points = history.map((e, i) => `${toX(i).toFixed(1)},${toY(e.rr).toFixed(1)}`).join(' ');
+        const zeroY = toY(0);
+        const showZero = 0 >= minV && 0 <= maxV;
+
+        // Color: positive skew (puts more expensive) = red, negative = green
+        const latestRR = values[values.length - 1];
+        const lineColor = latestRR >= 0 ? '#ef4444' : '#22c55e';
+
+        return (
+          <svg width={W} height={H} className="overflow-visible">
+            {/* Zero line */}
+            {showZero && (
+              <line
+                x1={PAD_L} y1={zeroY} x2={W - PAD_R} y2={zeroY}
+                stroke="#94a3b8" strokeWidth="0.5" strokeDasharray="3,3"
+              />
+            )}
+            {/* Polyline */}
+            <polyline
+              points={points}
+              fill="none"
+              stroke={lineColor}
+              strokeWidth="1.5"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+            {/* Dots + date labels */}
+            {history.map((e, i) => {
+              const x = toX(i);
+              const y = toY(e.rr);
+              const label = e.date.slice(5); // MM-DD
+              return (
+                <g key={e.date}>
+                  <circle cx={x} cy={y} r="2" fill={lineColor} />
+                  {(i === 0 || i === history.length - 1) && (
+                    <text
+                      x={x} y={H - 2}
+                      textAnchor={i === 0 ? 'start' : 'end'}
+                      fontSize="7" fill="#94a3b8"
+                    >{label}</text>
+                  )}
+                </g>
+              );
+            })}
+            {/* Y-axis labels */}
+            <text x={PAD_L - 2} y={PAD_T + 3} textAnchor="end" fontSize="7" fill="#94a3b8">
+              {(maxV * 100).toFixed(1)}
+            </text>
+            <text x={PAD_L - 2} y={PAD_T + plotH + 3} textAnchor="end" fontSize="7" fill="#94a3b8">
+              {(minV * 100).toFixed(1)}
+            </text>
+            {/* Latest value label */}
+            <text
+              x={toX(history.length - 1) + 4} y={toY(latestRR) + 3}
+              fontSize="8" fill={lineColor} fontWeight="bold"
+            >
+              {latestRR >= 0 ? '+' : ''}{(latestRR * 100).toFixed(2)}
+            </text>
+          </svg>
+        );
+      })()}
     </div>
   );
 }
