@@ -136,9 +136,13 @@ export default function App() {
       if (!isExpired(p.expiration)) return;
 
       const today = getLocalTodayString();
-      const hasAutoExpireRecord = (p.history || []).some(h => h.action === 'AUTO_EXPIRE');
+      const historyArr = p.history || [];
+      const hasAutoExpireRecord = historyArr.some(h => h.action === 'AUTO_EXPIRE');
+      // If the most recent action is REOPEN, treat the position as OPEN again
+      // and allow auto-expire to fire if still expired
+      const lastActionIsReopen = historyArr.length > 0 && historyArr[0].action === 'REOPEN';
 
-      if (p.status !== 'CLOSED' && !hasAutoExpireRecord) {
+      if (p.status !== 'CLOSED' && (!hasAutoExpireRecord || lastActionIsReopen)) {
         // OPEN expired → Close with auto-expire record
         console.log(`Auto-closing expired position: ${p.ticker}`);
         updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', p.id), {
