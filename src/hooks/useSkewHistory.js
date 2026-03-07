@@ -68,7 +68,7 @@ export function useSkewHistory({ user, db }) {
       // Update local state
       setSkewHistory(prev => {
         const filtered = (prev || []).filter(e => e.date !== today && e.date !== d10str);
-        return [...filtered, { date: today, rr }].sort((a, b) => a.date.localeCompare(b.date));
+        return [...filtered, { date: today, rr, fetchedAt: new Date().toISOString() }].sort((a, b) => a.date.localeCompare(b.date));
       });
     } catch (e) {
       setSkewError(e.message);
