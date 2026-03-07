@@ -607,11 +607,14 @@ export default function App() {
                 const dir = sortConfig.direction === 'asc' ? 1 : -1;
                 if (sortConfig.key === 'ticker') return (a.ticker || '').localeCompare(b.ticker || '') * dir;
                 if (sortConfig.key === 'days') {
+                  const aClosed = a.status === 'CLOSED';
+                  const bClosed = b.status === 'CLOSED';
+                  if (aClosed !== bClosed) return aClosed ? 1 : -1;
                   const today = new Date(); today.setHours(0, 0, 0, 0);
                   const getDays = (item) => item.expiration ? Math.ceil((new Date(item.expiration + 'T00:00:00') - today) / 86400000) : Infinity;
                   return (getDays(a) - getDays(b)) * dir;
                 }
-                return (b.dateOpened || '').localeCompare(a.dateOpened || '') * dir;
+                return (a.expiration || '').localeCompare(b.expiration || '') * dir;
               }).map(item => {
                 const concentration = item.type === 'PUT' && item.direction === 'SELL' ? getTickerConcentration(item.ticker) : 0;
                 return (
