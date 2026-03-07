@@ -305,7 +305,7 @@ export default function App() {
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <div className="bg-blue-600 p-2 rounded-lg text-white"><TrendingUp size={20} /></div>
-            <div>
+            <div onDoubleClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="cursor-default select-none">
               <h1 className="text-xl font-bold tracking-tight">OptionFocus <span className="text-xs font-normal opacity-70 ml-1">v2</span></h1>
               <p className="text-[10px] text-emerald-500 flex items-center gap-1"><Cloud size={10} /> 云端已连接</p>
             </div>
@@ -634,15 +634,6 @@ export default function App() {
           </>
         )}
       </main>
-
-      {/* Back to top */}
-      <button
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        className="fixed bottom-6 right-6 z-50 p-2.5 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 active:scale-95 transition-all"
-        title="返回页首"
-      >
-        <ChevronUp size={20} />
-      </button>
 
       {showAddModal && <AddEditModal formData={formData} setFormData={setFormData} onSubmit={handleSubmit} onClose={closeModal} activeTab={activeTab} positions={positions} onSelectPos={handlePositionSelect} isSaving={isSaving} />}
       {executionPlan && <ExecutionModal plan={executionPlan} onClose={() => setExecutionPlan(null)} onConfirm={handleExecutionConfirm} isLoading={isExecuting} />}
