@@ -4,7 +4,7 @@ import {
   History, ChevronUp, Edit3, Trash2, CheckSquare, ArrowRight, RotateCcw
 } from 'lucide-react';
 import { calcNetBasis, calcFinalPnL, calcBreakEven } from '../calc';
-import { isExpiredByTwoDays } from '../utils/dateUtils';
+import { isExpired as checkExpired } from '../utils/dateUtils';
 import Card from './ui/Card';
 import Button from './ui/Button';
 
@@ -15,7 +15,7 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
     const contracts = parseInt(item.contracts) || 1;
     const netBasis = calcNetBasis(item.entryPrice, item.rollCredit, item.contracts);
     const isClosed = item.status === 'CLOSED';
-    const isExpired = !isClosed && isExpiredByTwoDays(item.expiration);
+    const isExpired = !isClosed && checkExpired(item.expiration);
 
     const daysUntilExpiration = (() => {
       if (isClosed || isExpired || !item.expiration) return null;
