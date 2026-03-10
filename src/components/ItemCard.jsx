@@ -83,18 +83,33 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
               </div>
             )}
           </div>
-          {/* P&L / Net Basis — no buttons here */}
-          <div className="text-right shrink-0">
-            <div className="text-xs text-slate-400 font-bold uppercase">{isClosed || isExpired ? '最终盈亏 (P&L)' : '总成本 (NET BASIS)'}</div>
-            <div className={`text-xl font-mono font-bold ${(isClosed || isExpired) ? (finalPnL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400') : (netBasis >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}`}>
-              {(isClosed || isExpired)
-                ? `${finalPnL >= 0 ? '+' : '-'}$${Math.abs(finalPnL).toFixed(2)}`
-                : `${netBasis >= 0 ? '+' : '-'}$${Math.abs(netBasis).toFixed(0)}`}
+          {/* P&L / Net Basis + action buttons fixed here */}
+          <div className="text-right shrink-0 flex flex-col items-end gap-2">
+            <div>
+              <div className="text-xs text-slate-400 font-bold uppercase">{isClosed || isExpired ? '最终盈亏 (P&L)' : '总成本 (NET BASIS)'}</div>
+              <div className={`text-xl font-mono font-bold ${(isClosed || isExpired) ? (finalPnL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400') : (netBasis >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}`}>
+                {(isClosed || isExpired)
+                  ? `${finalPnL >= 0 ? '+' : '-'}$${Math.abs(finalPnL).toFixed(2)}`
+                  : `${netBasis >= 0 ? '+' : '-'}$${Math.abs(netBasis).toFixed(0)}`}
+              </div>
+            </div>
+            {/* Action buttons */}
+            <div className="flex gap-1">
+              {!isClosed && !isExpired && (
+                <button onClick={() => onDirectAction(item, 'ROLL')} className="p-1.5 text-amber-500 bg-amber-50 dark:bg-amber-900/20 rounded hover:bg-amber-100" title="滚仓 (Roll)"><RefreshCw size={16} /></button>
+              )}
+              {!isClosed && (
+                <button onClick={() => onDirectAction(item, 'CLOSE')} className="p-1.5 text-slate-500 bg-slate-100 dark:bg-slate-700 rounded hover:bg-slate-200" title="平仓 (Close)"><StopCircle size={16} /></button>
+              )}
+              {isClosed && <button onClick={() => onReopen(item)} className="p-1.5 text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 rounded hover:bg-emerald-100" title="重新开仓"><RotateCcw size={16} /></button>}
+              {(history.length > 1 || isClosed) && <button onClick={() => setIsHistoryExpanded(!isHistoryExpanded)} className="p-1.5 text-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 rounded hover:bg-indigo-100">{isHistoryExpanded ? <ChevronUp size={16} /> : <History size={16} />}</button>}
+              {!isClosed && <button onClick={() => onEdit(item)} className="p-1.5 text-blue-500 bg-blue-50 dark:bg-blue-900/20 rounded hover:bg-blue-100"><Edit3 size={16} /></button>}
+              <button onClick={() => onDelete(item.id, 'portfolio')} className="p-1.5 text-rose-500 bg-rose-50 dark:bg-rose-900/20 rounded hover:bg-rose-100"><Trash2 size={16} /></button>
             </div>
           </div>
         </div>
 
-        {/* History section */}
+        {/* History section — expands below, buttons stay fixed above */}
         {isHistoryExpanded && (
           <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 text-sm overflow-hidden">
             <div className="text-xs font-bold text-slate-400 mb-2 flex items-center gap-1"><History size={12} /> 交易历史</div>
@@ -125,20 +140,6 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
             })}
           </div>
         )}
-
-        {/* Action buttons — always at bottom, full width */}
-        <div className="flex gap-1 justify-end mt-2">
-          {!isClosed && !isExpired && (
-            <button onClick={() => onDirectAction(item, 'ROLL')} className="p-1.5 text-amber-500 bg-amber-50 dark:bg-amber-900/20 rounded hover:bg-amber-100" title="滚仓 (Roll)"><RefreshCw size={16} /></button>
-          )}
-          {!isClosed && (
-            <button onClick={() => onDirectAction(item, 'CLOSE')} className="p-1.5 text-slate-500 bg-slate-100 dark:bg-slate-700 rounded hover:bg-slate-200" title="平仓 (Close)"><StopCircle size={16} /></button>
-          )}
-          {isClosed && <button onClick={() => onReopen(item)} className="p-1.5 text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 rounded hover:bg-emerald-100" title="重新开仓"><RotateCcw size={16} /></button>}
-          {(history.length > 1 || isClosed) && <button onClick={() => setIsHistoryExpanded(!isHistoryExpanded)} className="p-1.5 text-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 rounded hover:bg-indigo-100">{isHistoryExpanded ? <ChevronUp size={16} /> : <History size={16} />}</button>}
-          {!isClosed && <button onClick={() => onEdit(item)} className="p-1.5 text-blue-500 bg-blue-50 dark:bg-blue-900/20 rounded hover:bg-blue-100"><Edit3 size={16} /></button>}
-          <button onClick={() => onDelete(item.id, 'portfolio')} className="p-1.5 text-rose-500 bg-rose-50 dark:bg-rose-900/20 rounded hover:bg-rose-100"><Trash2 size={16} /></button>
-        </div>
       </Card>
     );
   }

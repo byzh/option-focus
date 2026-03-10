@@ -3,7 +3,7 @@ import { calcNetBasis, calcFinalPnL } from './calc';
 import {
   Plus, TrendingUp, Settings, Loader2,
   Cloud, CloudUpload, Database, ChevronUp,
-  AlertTriangle, ScanSearch, LogOut, BarChart2, Search, X
+  AlertTriangle, LogOut, BarChart2, Search, X
 } from 'lucide-react';
 import {
   GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
@@ -295,7 +295,7 @@ export default function App() {
   const closeModal = () => { setShowAddModal(false); setFormData(EMPTY_FORM()); };
 
   const todaysPlanCount = plans.filter(p => p.actionDate === getLocalTodayString()).length;
-  const expiredCount = positions.filter(p => p.status !== 'CLOSED' && isExpiredByTwoDays(p.expiration)).length;
+
 
   if (!user) return <LoginScreen onLogin={handleGoogleLogin} loading={isLoggingIn} error={loginError} />;
 
@@ -537,13 +537,6 @@ export default function App() {
               );
             })()}
 
-            {/* Expired warning */}
-            {activeTab === 'portfolio' && expiredCount > 0 && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-6 flex items-center gap-3 animate-in slide-in-from-top-2">
-                <ScanSearch size={24} className="text-red-500" />
-                <div><h4 className="font-bold text-red-700 dark:text-red-300">过期扫描报告</h4><p className="text-xs text-red-600 dark:text-red-400">检测到 {expiredCount} 个期权已过期超过2天。系统已按"价值归零"自动计算了最终盈亏。</p></div>
-              </div>
-            )}
 
             {/* Position list */}
             <div className="grid gap-4">

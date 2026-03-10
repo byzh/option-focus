@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Wifi, WifiOff, Loader2, AlertTriangle, ChevronUp, Clock, User, BookOpen, ExternalLink, RefreshCw } from 'lucide-react';
+import { Wifi, WifiOff, Loader2, AlertTriangle, ChevronUp, BookOpen, ExternalLink } from 'lucide-react';
 import MarketScanner from './MarketScanner';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import Card from './ui/Card';
@@ -7,15 +7,6 @@ import Button from './ui/Button';
 import Input from './ui/Input';
 
 const APP_ID = 'option-focus-v2';
-
-// Helper for demo mode expiry display
-const formatDemoExpiry = (iso) => {
-  if (!iso) return '';
-  const h = (new Date(iso) - new Date()) / 3600000;
-  if (h < 0) return 'Token 已过期';
-  if (h < 1) return `Token 将在 ${Math.round(h * 60)} 分钟后过期`;
-  return `Token 将在 ${h.toFixed(1)} 小时后过期`;
-};
 
 function MonitorTab({ user, db, functions }) {
   // Connection lifecycle state
@@ -32,10 +23,6 @@ function MonitorTab({ user, db, functions }) {
 
   // Error state
   const [error, setError] = useState(null);
-
-  // Debug display
-  const [rawResponse, setRawResponse] = useState(null);
-  const [isRawExpanded, setIsRawExpanded] = useState(false);
 
   // Cache loading state
   const [isLoadingCache, setIsLoadingCache] = useState(true);
@@ -103,8 +90,6 @@ function MonitorTab({ user, db, functions }) {
 
     setStatus('loading');
     setError(null);
-    setRawResponse(null);
-
     // DEMO MODE: Skip API call and simulate successful connection
     if (isDemoMode) {
       await new Promise(resolve => setTimeout(resolve, 800)); // Simulate network delay
@@ -131,7 +116,6 @@ function MonitorTab({ user, db, functions }) {
       setSessionData(newSessionData);
       setStatus('connected');
       setRefreshToken('');
-      setRawResponse({ mode: 'demo', message: '演示模式 - 使用模拟数据' });
       return;
     }
 
@@ -180,7 +164,6 @@ function MonitorTab({ user, db, functions }) {
       setSessionData(newSessionData);
       setStatus('connected');
       setRefreshToken('');
-      setRawResponse({ success: true, message: '连接成功（access_token 安全存储在服务端）' });
     } catch (e) {
       console.error('OAuth connection failed:', e);
       setError({
@@ -208,8 +191,6 @@ function MonitorTab({ user, db, functions }) {
     setSessionData(null);
     setStatus('idle');
     setError(null);
-    setRawResponse(null);
-    setIsRawExpanded(false);
     setRefreshToken('');
   };
 
@@ -419,95 +400,36 @@ function MonitorTab({ user, db, functions }) {
           </form>
         )}
 
-        {/* Connected state */}
+        {/* Connected state — compact row */}
         {!isLoadingCache && status === 'connected' && sessionData && (
-          <div className="space-y-4">
-            {/* Mode banner */}
-            {sessionData.isDemoMode && (
-              <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3">
-                <p className="text-sm text-indigo-700 dark:text-indigo-300">
-                  🎭 <strong>演示模式</strong> — 使用模拟数据进行测试。
-                </p>
-              </div>
-            )}
-            {sessionData.connected && (
-              <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3">
-                <p className="text-sm text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
-                  <RefreshCw size={14} /> <strong>OAuth 已连接</strong> — access_token 安全存储在服务端。
-                </p>
-              </div>
-            )}
-
-            {/* User info row */}
-            <div className={`flex items-center justify-between p-3 rounded-lg border ${
+          <div className="space-y-3">
+            <div className={`flex items-center justify-between px-3 py-2 rounded-lg border ${
               sessionData.isDemoMode
                 ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800'
                 : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
             }`}>
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              <div className="flex items-center gap-2">
+                <Wifi size={14} className={sessionData.isDemoMode ? 'text-indigo-500' : 'text-emerald-500'} />
+                <span className={`text-sm font-semibold ${sessionData.isDemoMode ? 'text-indigo-800 dark:text-indigo-200' : 'text-emerald-800 dark:text-emerald-200'}`}>
+                  {sessionData.tastyUsername}
+                </span>
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${
                   sessionData.isDemoMode
-                    ? 'bg-indigo-100 dark:bg-indigo-800'
-                    : 'bg-emerald-100 dark:bg-emerald-800'
+                    ? 'bg-indigo-100 dark:bg-indigo-800 text-indigo-600 dark:text-indigo-300'
+                    : 'bg-emerald-100 dark:bg-emerald-800 text-emerald-600 dark:text-emerald-300'
                 }`}>
-                  <User size={16} className={sessionData.isDemoMode ? 'text-indigo-600 dark:text-indigo-400' : 'text-emerald-600 dark:text-emerald-400'} />
-                </div>
-                <div>
-                  <div className={`text-sm font-semibold ${
-                    sessionData.isDemoMode
-                      ? 'text-indigo-800 dark:text-indigo-200'
-                      : 'text-emerald-800 dark:text-emerald-200'
-                  }`}>
-                    {sessionData.tastyUsername}
-                  </div>
-                  <div className={`text-xs flex items-center gap-1 ${
-                    sessionData.isDemoMode
-                      ? 'text-indigo-600 dark:text-indigo-400'
-                      : 'text-emerald-600 dark:text-emerald-400'
-                  }`}>
-                    <Clock size={10} />
-                    {sessionData.isDemoMode
-                      ? formatDemoExpiry(sessionData.sessionExpiration)
-                      : 'Token 由服务端安全管理'}
-                  </div>
-                </div>
+                  {sessionData.isDemoMode ? '演示' : 'OAuth'}
+                </span>
               </div>
-              <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                sessionData.isDemoMode
-                  ? 'bg-indigo-100 dark:bg-indigo-800 text-indigo-700 dark:text-indigo-300'
-                  : 'bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300'
-              }`}>
-                {sessionData.isDemoMode ? '演示已连接' : 'OAuth 已连接'}
-              </span>
+              <button
+                onClick={handleDisconnect}
+                className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                title="断开连接"
+              >
+                <WifiOff size={14} />
+              </button>
             </div>
 
-            {/* Disconnect button */}
-            <Button variant="danger" onClick={handleDisconnect} className="w-full">
-              <WifiOff size={16} /> 断开连接
-            </Button>
-
-            {/* Raw response (dev only) */}
-            {import.meta.env.DEV && rawResponse && (
-              <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
-                <button
-                  onClick={() => setIsRawExpanded(v => !v)}
-                  className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
-                >
-                  <span className="font-medium">原始 API 响应 (调试)</span>
-                  <ChevronUp
-                    size={12}
-                    className={`transition-transform ${
-                      isRawExpanded ? '' : 'rotate-180'
-                    }`}
-                  />
-                </button>
-                {isRawExpanded && (
-                  <pre className="p-3 text-[11px] bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 overflow-auto max-h-48 border-t border-slate-200 dark:border-slate-700">
-                    {JSON.stringify(rawResponse, null, 2)}
-                  </pre>
-                )}
-              </div>
-            )}
           </div>
         )}
       </Card>
