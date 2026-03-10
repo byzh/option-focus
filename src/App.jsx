@@ -566,9 +566,10 @@ export default function App() {
                           <div className="flex items-center gap-3">
                             <ChevronUp size={14} className={`text-slate-400 transition-transform ${expandedTickers.has(agg.ticker) ? '' : 'rotate-180'}`} />
                             <span className="font-bold text-lg text-slate-800 dark:text-white">{agg.ticker}</span>
-                            <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full">
-                              {agg.openCount} 条{agg.openCount < agg.itemCount && <span className="opacity-60"> / {agg.itemCount}</span>}
-                            </span>
+                            <span className="text-xs px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-full">{agg.openCount} 开仓</span>
+                            {agg.openCount < agg.itemCount && (
+                              <span className="text-xs px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-full">{agg.itemCount - agg.openCount} 已平</span>
+                            )}
                           </div>
                           <div className="text-right">
                             <div className="text-xs text-slate-400">平均成本</div>
