@@ -1,12 +1,12 @@
 import { useState, useCallback, useRef } from 'react';
-import { doc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, collection, getDocs, updateDoc } from 'firebase/firestore';
 import { callTastytradeApi } from '../utils/apiClient';
 import { getLocalTodayString } from '../utils/dateUtils';
 
 const APP_ID = 'option-focus-v2';
 
 export function useSkewHistory({ user, db }) {
-  const [skewHistory, setSkewHistory] = useState(null); // [{ date, rr }]
+  const [skewHistory, setSkewHistory] = useState(null); // [{ date, fetchedAt, exps: { expDate: rr } }]
   const [skewLoading, setSkewLoading] = useState(false);
   const [skewError, setSkewError] = useState(null);
   const wsRef = useRef(null);
@@ -54,10 +54,18 @@ export function useSkewHistory({ user, db }) {
 
       const rr = await fetchGreeksFromWebSocket(user, expiration, wsRef, timeoutRef);
 
-      // Store today's value
+      const expDate = expiration['expiration-date'];
       const today = getLocalTodayString();
+      const fetchedAt = new Date().toISOString();
+
+      // Merge this expiration's RR into today's doc (preserves other expirations)
       const histRef = doc(db, 'artifacts', APP_ID, 'skew', symbol, 'history', today);
-      await setDoc(histRef, { rr, fetchedAt: new Date().toISOString() });
+      try {
+        await updateDoc(histRef, { [`exps.${expDate}`]: rr, fetchedAt });
+      } catch {
+        // Document doesn't exist yet — create it
+        await setDoc(histRef, { exps: { [expDate]: rr }, fetchedAt });
+      }
 
       // Cleanup day-10 (fire-and-forget)
       const d10 = new Date();
@@ -65,10 +73,13 @@ export function useSkewHistory({ user, db }) {
       const d10str = `${d10.getFullYear()}-${String(d10.getMonth() + 1).padStart(2, '0')}-${String(d10.getDate()).padStart(2, '0')}`;
       deleteDoc(doc(db, 'artifacts', APP_ID, 'skew', symbol, 'history', d10str)).catch(() => {});
 
-      // Update local state
+      // Update local state — merge into today's entry
       setSkewHistory(prev => {
-        const filtered = (prev || []).filter(e => e.date !== today && e.date !== d10str);
-        return [...filtered, { date: today, rr, fetchedAt: new Date().toISOString() }].sort((a, b) => a.date.localeCompare(b.date));
+        const list = prev || [];
+        const todayEntry = list.find(e => e.date === today) || { date: today, exps: {} };
+        const updated = { ...todayEntry, fetchedAt, exps: { ...(todayEntry.exps || {}), [expDate]: rr } };
+        const filtered = list.filter(e => e.date !== today && e.date !== d10str);
+        return [...filtered, updated].sort((a, b) => a.date.localeCompare(b.date));
       });
     } catch (e) {
       setSkewError(e.message);

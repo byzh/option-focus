@@ -554,7 +554,12 @@ function OptionChainDetail({
       )}
 
       {/* 25-delta Risk Reversal (Put Skew) history chart */}
-      <SkewChart history={skewHistory} loading={skewLoading} error={skewError} />
+      <SkewChart
+        history={skewHistory}
+        loading={skewLoading}
+        error={skewError}
+        expDate={selExp?.['expiration-date']}
+      />
     </div>
   );
 }
@@ -692,7 +697,7 @@ function OIWallChart({ oiData, loading, error, underlyingPrice }) {
 
 // 25-delta Risk Reversal history chart (pure SVG)
 // Displays put25dIV - call25dIV over the past 10 days
-function SkewChart({ history, loading, error }) {
+function SkewChart({ history, loading, error, expDate }) {
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-xs text-slate-400 py-1 mt-2">
@@ -701,11 +706,18 @@ function SkewChart({ history, loading, error }) {
     );
   }
 
-  const hasData = Array.isArray(history) && history.length > 0;
+  // Filter history to only entries that have data for the selected expiration
+  const filtered = expDate && Array.isArray(history)
+    ? history
+        .map(e => ({ date: e.date, rr: e.exps?.[expDate], fetchedAt: e.fetchedAt }))
+        .filter(e => e.rr != null)
+    : [];
+
+  const hasData = filtered.length > 0;
 
   const latestFetchedAt = hasData
     ? (() => {
-        const ts = history[history.length - 1]?.fetchedAt;
+        const ts = filtered[filtered.length - 1]?.fetchedAt;
         if (!ts) return null;
         const d = new Date(ts);
         return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -724,22 +736,24 @@ function SkewChart({ history, loading, error }) {
       </div>
       {error && <div className="text-[10px] text-amber-500">{error}</div>}
       {!hasData && !error && (
-        <div className="text-[10px] text-slate-400 italic">选择到期日后自动计算并记录</div>
+        <div className="text-[10px] text-slate-400 italic">
+          {expDate ? '暂无历史数据，选择到期日后自动记录' : '选择到期日后自动计算并记录'}
+        </div>
       )}
       {hasData && (() => {
         const W = 280, H = 56, PAD_L = 32, PAD_R = 8, PAD_T = 6, PAD_B = 16;
         const plotW = W - PAD_L - PAD_R;
         const plotH = H - PAD_T - PAD_B;
 
-        const values = history.map(e => e.rr);
+        const values = filtered.map(e => e.rr);
         const minV = Math.min(...values);
         const maxV = Math.max(...values);
         const range = maxV - minV || 0.01;
 
-        const toX = (i) => PAD_L + (i / (history.length - 1 || 1)) * plotW;
+        const toX = (i) => PAD_L + (i / (filtered.length - 1 || 1)) * plotW;
         const toY = (v) => PAD_T + plotH - ((v - minV) / range) * plotH;
 
-        const points = history.map((e, i) => `${toX(i).toFixed(1)},${toY(e.rr).toFixed(1)}`).join(' ');
+        const points = filtered.map((e, i) => `${toX(i).toFixed(1)},${toY(e.rr).toFixed(1)}`).join(' ');
         const zeroY = toY(0);
         const showZero = 0 >= minV && 0 <= maxV;
 
@@ -766,14 +780,14 @@ function SkewChart({ history, loading, error }) {
               strokeLinecap="round"
             />
             {/* Dots + date labels */}
-            {history.map((e, i) => {
+            {filtered.map((e, i) => {
               const x = toX(i);
               const y = toY(e.rr);
               const label = e.date.slice(5); // MM-DD
               return (
                 <g key={e.date}>
                   <circle cx={x} cy={y} r="2" fill={lineColor} />
-                  {(i === 0 || i === history.length - 1) && (
+                  {(i === 0 || i === filtered.length - 1) && (
                     <text
                       x={x} y={H - 2}
                       textAnchor={i === 0 ? 'start' : 'end'}
@@ -792,7 +806,7 @@ function SkewChart({ history, loading, error }) {
             </text>
             {/* Latest value label */}
             <text
-              x={toX(history.length - 1) + 4} y={toY(latestRR) + 3}
+              x={toX(filtered.length - 1) + 4} y={toY(latestRR) + 3}
               fontSize="8" fill={lineColor} fontWeight="bold"
             >
               {latestRR >= 0 ? '+' : ''}{(latestRR * 100).toFixed(2)}
