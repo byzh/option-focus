@@ -200,12 +200,6 @@ function MonitorTab({ user, db }) {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-3">
           行情监控 (Monitor)
-          {/* Inline status badge */}
-          {status === 'connected' && (
-            <span className="text-sm font-normal px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
-              <Wifi size={12} /> 已连接
-            </span>
-          )}
           {status === 'loading' && (
             <span className="text-sm font-normal px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 flex items-center gap-1">
               <Loader2 size={12} className="animate-spin" /> 连接中...
@@ -217,9 +211,30 @@ function MonitorTab({ user, db }) {
             </span>
           )}
         </h2>
+        {/* Connected: compact user info in header */}
+        {status === 'connected' && sessionData && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-slate-600 dark:text-slate-300">{sessionData.tastyUsername}</span>
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+              sessionData.isDemoMode
+                ? 'bg-indigo-100 dark:bg-indigo-800 text-indigo-600 dark:text-indigo-300'
+                : 'bg-emerald-100 dark:bg-emerald-800 text-emerald-600 dark:text-emerald-300'
+            }`}>
+              {sessionData.isDemoMode ? '演示' : 'OAuth'}
+            </span>
+            <button
+              onClick={handleDisconnect}
+              className="p-1 text-slate-400 hover:text-red-500 rounded transition-colors"
+              title="断开连接"
+            >
+              <Wifi size={14} className="text-emerald-500" />
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Tastytrade API Connection Card */}
+      {/* Tastytrade API Connection Card — hidden when connected */}
+      {status !== 'connected' && (
       <Card className="p-5 mb-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -432,6 +447,7 @@ function MonitorTab({ user, db }) {
           </div>
         )}
       </Card>
+      )}
 
       {/* Market Scanner — shown when connected (non-demo) */}
       {status === 'connected' && !sessionData?.isDemoMode && (
