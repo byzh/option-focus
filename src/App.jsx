@@ -85,6 +85,7 @@ export default function App() {
 
     return Object.entries(grouped).map(([ticker, items]) => {
       const itemCount = items.length;
+      const openCount = items.filter(p => p.status !== 'CLOSED').length;
       // Count all positions (active, closed, and expired) for totalContracts
       const totalContracts = items.reduce((sum, p) => sum + (parseInt(p.contracts) || 1), 0);
       const totalCost = items.reduce((sum, p) => sum + calcNetBasis(p.entryPrice, p.rollCredit, p.contracts), 0);
@@ -98,7 +99,7 @@ export default function App() {
         now.setHours(0, 0, 0, 0);
         return Math.ceil((exp - now) / 86400000);
       })) : Infinity;
-      return { ticker, items, itemCount, totalContracts, totalCost, avgCost, earliestDTE };
+      return { ticker, items, itemCount, openCount, totalContracts, totalCost, avgCost, earliestDTE };
     });
   };
 
@@ -565,7 +566,9 @@ export default function App() {
                           <div className="flex items-center gap-3">
                             <ChevronUp size={14} className={`text-slate-400 transition-transform ${expandedTickers.has(agg.ticker) ? '' : 'rotate-180'}`} />
                             <span className="font-bold text-lg text-slate-800 dark:text-white">{agg.ticker}</span>
-                            <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full">{agg.itemCount} 条</span>
+                            <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full">
+                              {agg.openCount} 条{agg.openCount < agg.itemCount && <span className="opacity-60"> / {agg.itemCount}</span>}
+                            </span>
                           </div>
                           <div className="text-right">
                             <div className="text-xs text-slate-400">平均成本</div>
