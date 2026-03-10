@@ -138,11 +138,11 @@ export default function App() {
       const today = getLocalTodayString();
       const historyArr = p.history || [];
       const hasAutoExpireRecord = historyArr.some(h => h.action === 'AUTO_EXPIRE');
-      // If the most recent action is REOPEN, treat the position as OPEN again
-      // and allow auto-expire to fire if still expired
-      const lastActionIsReopen = historyArr.length > 0 && historyArr[0].action === 'REOPEN';
+      // If reopened after expiration date, require manual close — skip auto-expire
+      const reopenEntry = historyArr.find(h => h.action === 'REOPEN');
+      const reopenedAfterExpiry = reopenEntry && reopenEntry.date > p.expiration;
 
-      if (p.status !== 'CLOSED' && (!hasAutoExpireRecord || lastActionIsReopen)) {
+      if (p.status !== 'CLOSED' && !hasAutoExpireRecord && !reopenedAfterExpiry) {
         // OPEN expired → Close with auto-expire record
         console.log(`Auto-closing expired position: ${p.ticker}`);
         updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', p.id), {
@@ -354,9 +354,10 @@ export default function App() {
               </button>
             </div>
 
-            {activeTab === 'monitor' ? (
+            <div className={activeTab === 'monitor' ? '' : 'hidden'}>
               <MonitorTab user={user} db={db} functions={functions} />
-            ) : (
+            </div>
+            {activeTab !== 'monitor' && (
               <>
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-3">{activeTab === 'portfolio' ? '当前持仓 (Open Positions)' : '操作计划 (Planner)'}</h2>
@@ -629,7 +630,7 @@ export default function App() {
               });
               })()}
             </div>
-              </>
+            </>
             )}
           </>
         )}
