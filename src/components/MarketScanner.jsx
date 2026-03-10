@@ -10,6 +10,7 @@ import { useMarketScanner } from '../hooks/useMarketScanner';
 import { useOptionChain } from '../hooks/useOptionChain';
 import { useOIWall } from '../hooks/useOIWall';
 import { useSkewHistory } from '../hooks/useSkewHistory';
+import { useSkewAutoJob } from '../hooks/useSkewAutoJob';
 import { DEFAULT_SYMBOLS } from '../data/defaultSymbols';
 import { callTastytradeApi } from '../utils/apiClient';
 
@@ -37,6 +38,9 @@ export default function MarketScanner({ user, db }) {
 
   // Skew history hook
   const { skewHistory, skewLoading, skewError, fetchAndStoreSkew, loadSkewHistory, clearSkew } = useSkewHistory({ user, db });
+
+  // Skew auto job — runs once per day after 9:45 AM ET
+  const { jobStatus, jobProgress, runSkewJob } = useSkewAutoJob({ user, db, symbols });
 
   // Sorting
   const [sortKey, setSortKey] = useState('implied-volatility-index-rank');
@@ -218,6 +222,20 @@ export default function MarketScanner({ user, db }) {
           <ScanSearch size={18} className="text-blue-500" />
           <h3 className="font-semibold text-slate-800 dark:text-slate-200">IVR/IVX 扫描</h3>
           <span className="text-xs text-slate-400">({symbols.length} 标的)</span>
+          {jobStatus === 'running' ? (
+            <span className="text-xs text-blue-400 flex items-center gap-1">
+              <Loader2 size={10} className="animate-spin" />
+              Skew {jobProgress.done}/{jobProgress.total}
+            </span>
+          ) : (
+            <button
+              onClick={runSkewJob}
+              className="p-1 text-slate-400 hover:text-blue-400 transition-colors"
+              title="手动触发 Skew 全量更新"
+            >
+              <RotateCw size={11} />
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
