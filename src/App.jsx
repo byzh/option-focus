@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { calcNetBasis, calcFinalPnL } from './calc';
 import {
   Plus, TrendingUp, Settings, Loader2,
@@ -558,7 +558,7 @@ export default function App() {
                 if (baseList.length === 0) return <div className="text-center py-12 text-slate-400 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700"><p>{searchTicker || filterStatus !== 'ALL' || filterType !== 'ALL' || filterDir !== 'ALL' ? '没有符合筛选条件的记录' : '暂无记录'}</p></div>;
 
                 if (showAggregated && activeTab === 'portfolio') {
-                  const aggregated = aggregateByTicker(baseList).sort((a, b) => b.totalCost - a.totalCost);
+                  const aggregated = aggregateByTicker(baseList).sort((a, b) => a.ticker.localeCompare(b.ticker));
                   return aggregated.map(agg => (
                     <div key={agg.ticker}>
                       <button onClick={() => setExpandedTickers(prev => new Set(prev.has(agg.ticker) ? [...prev].filter(t => t !== agg.ticker) : [...prev, agg.ticker]))} className="w-full text-left p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow">
