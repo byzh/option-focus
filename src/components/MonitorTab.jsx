@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Wifi, WifiOff, Loader2, AlertTriangle, ChevronUp, BookOpen, ExternalLink } from 'lucide-react';
 import MarketScanner from './MarketScanner';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
@@ -8,7 +8,7 @@ import Input from './ui/Input';
 
 const APP_ID = 'option-focus-v2';
 
-function MonitorTab({ user, db, functions }) {
+function MonitorTab({ user, db }) {
   // Connection lifecycle state
   const [status, setStatus] = useState('idle'); // idle | loading | connected | error
 
@@ -144,7 +144,7 @@ function MonitorTab({ user, db, functions }) {
         throw new Error(errorData.message || `HTTP ${response.status}`);
       }
 
-      const result = await response.json();
+      await response.json();
       // result is { connected: true, expiresIn: 900 } — NO access_token
 
       // Store only refreshToken in Firestore (no access_token)
@@ -409,7 +409,13 @@ function MonitorTab({ user, db, functions }) {
                 : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
             }`}>
               <div className="flex items-center gap-2">
-                <Wifi size={14} className={sessionData.isDemoMode ? 'text-indigo-500' : 'text-emerald-500'} />
+                <button
+                  onClick={handleDisconnect}
+                  className={`p-0.5 rounded transition-colors ${sessionData.isDemoMode ? 'text-indigo-500 hover:text-red-500' : 'text-emerald-500 hover:text-red-500'}`}
+                  title="断开连接"
+                >
+                  <Wifi size={14} />
+                </button>
                 <span className={`text-sm font-semibold ${sessionData.isDemoMode ? 'text-indigo-800 dark:text-indigo-200' : 'text-emerald-800 dark:text-emerald-200'}`}>
                   {sessionData.tastyUsername}
                 </span>
@@ -421,13 +427,6 @@ function MonitorTab({ user, db, functions }) {
                   {sessionData.isDemoMode ? '演示' : 'OAuth'}
                 </span>
               </div>
-              <button
-                onClick={handleDisconnect}
-                className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                title="断开连接"
-              >
-                <WifiOff size={14} />
-              </button>
             </div>
 
           </div>
