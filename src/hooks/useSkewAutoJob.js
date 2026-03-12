@@ -1,10 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { doc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, getDoc } from 'firebase/firestore';
 import { callTastytradeApi } from '../utils/apiClient';
 import { getLocalTodayString } from '../utils/dateUtils';
 
 const APP_ID = 'option-focus-v2';
-const JOB_KEY = 'skew_auto_job_last_run';
 const CHAIN_DELAY_MS = 350; // ~2.8 req/s, well within TastyTrade rate limits
 
 /** Check if it's after 9:45 AM ET on a weekday */
@@ -107,7 +106,6 @@ export function useSkewAutoJob({ user, db, symbols }) {
         }
       }
 
-      localStorage.setItem(JOB_KEY, today);
       setJobStatus('done');
     } catch (e) {
       console.error('[SkewJob] failed:', e);
@@ -120,10 +118,13 @@ export function useSkewAutoJob({ user, db, symbols }) {
   // Auto-trigger once per day after 9:45 AM ET
   useEffect(() => {
     if (!user || !db || !symbols?.length) return;
-    const today = getLocalTodayString();
-    if (localStorage.getItem(JOB_KEY) === today) return; // already ran today
     if (!isAfterMarketOpen()) return;
-    runJob();
+    const today = getLocalTodayString();
+    // Check Firestore (shared across all devices) instead of localStorage
+    const probe = symbols[Math.floor(symbols.length / 2)]; // pick a middle symbol as probe
+    getDoc(doc(db, 'artifacts', APP_ID, 'skew', probe, 'history', today))
+      .then(snap => { if (!snap.exists()) runJob(); })
+      .catch(() => runJob()); // on error, run anyway
   }, [user?.uid, db]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { jobStatus, jobProgress, runSkewJob: runJob };
