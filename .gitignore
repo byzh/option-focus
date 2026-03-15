@@ -16,8 +16,10 @@ dist-ssr
 .env
 .env.local
 
-# Claude CLI
-.claude/
+# Claude CLI — ignore local/personal settings, commit shared config
+.claude/settings.local.json
+.claude/todos/
+.claude/memory/
 
 # Editor directories and files
 .vscode/*
