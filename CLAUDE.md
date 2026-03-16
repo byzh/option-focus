@@ -52,7 +52,6 @@ await updateDoc(ref, { [`exps.${expDate}`]: rr });
 await setDoc(ref, { exps: { [expDate]: rr } }, { merge: true });
 ```
 
-**期权过期判断用 `isExpired`，不用 `isExpiredByTwoDays`**
 
 **期权链 key 格式:** `String(parseFloat(strike['strike-price']))` (去掉 `.0` 后缀)
 
