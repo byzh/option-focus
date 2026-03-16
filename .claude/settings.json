@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "git diff --name-only HEAD 2>/dev/null | grep -q '^src/' && npm test -- --run 2>&1 | tail -30 || true",
+            "command": "git diff --name-only HEAD 2>/dev/null | grep -q '^src/' && echo '[Hook] src/ changed — tests will run via git pre-commit hook before next commit' || true",
             "timeout": 60
           }
         ]

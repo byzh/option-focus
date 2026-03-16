@@ -139,9 +139,9 @@ describe('calcBreakEven', () => {
     expect(calcBreakEven('PUT', 50, 2.50, 0)).toBeCloseTo(47.50);
   });
 
-  it('short put with roll credit: strike=50, entry=2.50, rollCredit=-0.50 → 47.00', () => {
-    // received additional $0.50 credit on roll, so breakEven improves
-    expect(calcBreakEven('PUT', 50, 2.50, -0.50)).toBeCloseTo(47.00);
+  it('short put with roll credit: strike=50, entry=2.50, rollCredit=+0.50 → 47.00', () => {
+    // received additional $0.50 credit on roll (positive), so breakEven improves
+    expect(calcBreakEven('PUT', 50, 2.50, 0.50)).toBeCloseTo(47.00);
   });
 
   it('short call, no roll: strike=150, entry=3.00 → 153.00', () => {
