@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { doc, setDoc, deleteDoc, collection, getDocs, updateDoc } from 'firebase/firestore';
 import { callTastytradeApi } from '../utils/apiClient';
-import { getLocalTodayString } from '../utils/dateUtils';
+import { getETDateString } from '../utils/dateUtils';
 
 const APP_ID = 'option-focus-v2';
 
@@ -55,7 +55,7 @@ export function useSkewHistory({ user, db }) {
       const rr = await fetchGreeksFromWebSocket(user, expiration, wsRef, timeoutRef);
 
       const expDate = expiration['expiration-date'];
-      const today = getLocalTodayString();
+      const today = getETDateString();
       const fetchedAt = new Date().toISOString();
 
       // Merge this expiration's RR into today's doc (preserves other expirations)

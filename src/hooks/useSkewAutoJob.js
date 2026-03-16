@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { doc, setDoc, updateDoc, getDoc } from 'firebase/firestore';
 import { callTastytradeApi } from '../utils/apiClient';
-import { getLocalTodayString } from '../utils/dateUtils';
+import { getETDateString } from '../utils/dateUtils';
 
 const APP_ID = 'option-focus-v2';
 const CHAIN_DELAY_MS = 350; // ~2.8 req/s, well within TastyTrade rate limits
@@ -35,7 +35,7 @@ export function useSkewAutoJob({ user, db, symbols }) {
     setJobProgress({ done: 0, total: symbols.length });
 
     try {
-      const today = getLocalTodayString();
+      const today = getETDateString();
 
       // Step 1: Fetch option chains, collect all strike subscriptions
       const allSubs = []; // { streamerSymbol, ticker, expDate, price, side }
@@ -119,7 +119,7 @@ export function useSkewAutoJob({ user, db, symbols }) {
   useEffect(() => {
     if (!user || !db || !symbols?.length) return;
     if (!isAfterMarketOpen()) return;
-    const today = getLocalTodayString();
+    const today = getETDateString();
     // Check Firestore (shared across all devices) instead of localStorage
     const probe = symbols[Math.floor(symbols.length / 2)]; // pick a middle symbol as probe
     getDoc(doc(db, 'artifacts', APP_ID, 'skew', probe, 'history', today))

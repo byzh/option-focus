@@ -6,6 +6,14 @@ export const getLocalTodayString = () => {
   return `${year}-${month}-${day}`;
 };
 
+/** Returns today's date in ET timezone (America/New_York) as YYYY-MM-DD.
+ *  Used for skew history keys so that data is always keyed by US trading day,
+ *  not local time — prevents double-scanning when local midnight crosses
+ *  while ET market is still open. */
+export const getETDateString = () => {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+};
+
 export const isExpiredByTwoDays = (expirationDate) => {
   if (!expirationDate) return false;
   const exp = new Date(expirationDate);
