@@ -306,16 +306,27 @@ export default function MarketScanner({ user, db }) {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-semibold text-slate-400 uppercase">Liquidity 最低 (1-5)</label>
-              <input
-                type="number"
-                min="1"
-                max="5"
-                value={filters.minLiquidity ?? ''}
-                onChange={(e) => handleFilterChange('minLiquidity', e.target.value)}
-                placeholder="不限"
-                className="px-2 py-1.5 text-xs rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500"
-              />
+              <label className="text-[10px] font-semibold text-slate-400 uppercase">
+                Liquidity 最低{filters.minLiquidity ? ` (≥${filters.minLiquidity})` : ''}
+              </label>
+              <div className="flex gap-1 items-center h-[30px]">
+                {[1, 2, 3, 4, 5].map(n => {
+                  const active = filters.minLiquidity && n <= filters.minLiquidity;
+                  const selected = filters.minLiquidity === n;
+                  return (
+                    <button
+                      key={n}
+                      onClick={() => handleFilterChange('minLiquidity', selected ? '' : n)}
+                      title={`Liquidity ≥ ${n}`}
+                      className={`w-5 h-5 rounded-full transition-colors border ${
+                        active
+                          ? 'bg-blue-500 border-blue-500'
+                          : 'bg-transparent border-slate-400 dark:border-slate-500 hover:border-blue-400'
+                      }`}
+                    />
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
