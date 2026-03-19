@@ -55,6 +55,11 @@ await setDoc(ref, { exps: { [expDate]: rr } }, { merge: true });
 
 **期权链 key 格式:** `String(parseFloat(strike['strike-price']))` (去掉 `.0` 后缀)
 
+## 工作流程
+
+**每次改动代码前，必须先用文字阐述计划（涉及哪些文件、改什么、为什么），等用户明确确认后才能开始写代码。**
+不得跳过确认步骤，哪怕改动看起来很小。
+
 ## 回复偏好
 
 - 回复用中文

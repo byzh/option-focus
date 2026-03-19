@@ -1,15 +1,49 @@
 import React, { useState } from 'react';
 import {
   Archive, AlertTriangle, RefreshCw, StopCircle,
-  History, ChevronUp, Edit3, Trash2, CheckSquare, ArrowRight, RotateCcw
+  History, ChevronUp, Edit3, Trash2, CheckSquare, ArrowRight, RotateCcw, CheckCircle2
 } from 'lucide-react';
 import { calcNetBasis, calcFinalPnL, calcBreakEven } from '../calc';
+import { assessLeapsHealth } from '../utils/leapsHealth';
 import { isExpired as checkExpired } from '../utils/dateUtils';
 import Card from './ui/Card';
 import Button from './ui/Button';
 
-function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onReopen, concentration = 0 }) {
+function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onReopen, concentration = 0, strategyTag = null, delta = null }) {
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
+
+  if (type === 'portfolio' && item.assetType === 'STOCK') {
+    const shares = parseInt(item.contracts) || 1;
+    const isClosed = item.status === 'CLOSED';
+    const totalCost = (parseFloat(item.entryPrice) || 0) * shares;
+    return (
+      <Card className={`p-4 hover:shadow-md transition-shadow ${isClosed ? 'opacity-75 bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800' : ''}`}>
+        <div className="flex justify-between items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
+              <span className="px-2 py-0.5 text-xs font-bold rounded bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 shrink-0">STOCK</span>
+              <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 shrink-0">{item.ticker}</h3>
+              {strategyTag && <span className="px-2 py-0.5 text-xs font-bold rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 shrink-0">{strategyTag}</span>}
+              {isClosed && <span className="bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shrink-0"><Archive size={10} /> 已清仓</span>}
+            </div>
+            <div className="text-sm text-slate-500 dark:text-slate-400">
+              均价 ${parseFloat(item.entryPrice).toFixed(2)} × {shares} 股
+            </div>
+          </div>
+          <div className="text-right shrink-0 flex flex-col items-end gap-2">
+            <div>
+              <div className="text-xs text-slate-400 font-bold uppercase">总成本</div>
+              <div className="text-xl font-mono font-bold text-slate-700 dark:text-slate-200">${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+            </div>
+            <div className="flex gap-1">
+              {!isClosed && <button onClick={() => onEdit(item)} className="p-1.5 text-blue-500 bg-blue-50 dark:bg-blue-900/20 rounded hover:bg-blue-100"><Edit3 size={16} /></button>}
+              <button onClick={() => onDelete(item.id, 'portfolio')} className="p-1.5 text-rose-500 bg-rose-50 dark:bg-rose-900/20 rounded hover:bg-rose-100"><Trash2 size={16} /></button>
+            </div>
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   if (type === 'portfolio') {
     const contracts = parseInt(item.contracts) || 1;
@@ -60,6 +94,7 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
               <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 shrink-0">{item.ticker}</h3>
               <span className="text-sm text-slate-500 dark:text-slate-400 shrink-0">{item.expiration} ${item.strike}</span>
               <span className={`px-1.5 py-0.5 text-xs font-bold rounded shrink-0 ${item.type === 'PUT' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' : 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'}`}>{item.type}</span>
+              {strategyTag && <span className="px-2 py-0.5 text-xs font-bold rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 shrink-0">{strategyTag}</span>}
               {isClosed && <span className="bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shrink-0"><Archive size={10} /> 已平仓</span>}
               {isExpired && !isClosed && <span className="bg-red-100 text-red-600 text-xs px-2 rounded-full font-bold flex items-center gap-1 shrink-0"><AlertTriangle size={10} /> 已过期</span>}
               {daysUntilExpiration !== null && (
@@ -82,6 +117,25 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
                 保本价: <span className="font-mono text-slate-600 dark:text-slate-300">${calcBreakEven(item.type, item.strike, item.entryPrice, item.rollCredit).toFixed(2)}</span>
               </div>
             )}
+            {strategyTag === 'PMCC' && item.direction === 'BUY' && !isClosed && !isExpired && (() => {
+              const health = assessLeapsHealth(daysUntilExpiration, delta);
+              const styles = {
+                ok:      'text-emerald-600 dark:text-emerald-400',
+                warn:    'text-amber-600 dark:text-amber-400',
+                danger:  'text-red-600 dark:text-red-400',
+                roll:    'text-violet-600 dark:text-violet-400',
+                unknown: 'text-slate-400',
+              };
+              return (
+                <div className={`text-xs mt-0.5 flex items-center gap-1 ${styles[health.level]}`}>
+                  {health.level === 'ok'     && <CheckCircle2 size={11} />}
+                  {health.level === 'warn'   && <AlertTriangle size={11} />}
+                  {health.level === 'danger' && <AlertTriangle size={11} />}
+                  {health.level === 'roll'   && <RefreshCw size={11} />}
+                  <span>LEAPS: {health.message}</span>
+                </div>
+              );
+            })()}
           </div>
           {/* P&L / Net Basis + action buttons fixed here */}
           <div className="text-right shrink-0 flex flex-col items-end gap-2">

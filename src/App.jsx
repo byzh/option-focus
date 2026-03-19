@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { calcNetBasis, calcFinalPnL } from './calc';
+import { detectCC, detectPMCC } from './utils/strategyDetect';
+import { useLeapsDelta } from './hooks/useLeapsDelta';
 import {
   Plus, TrendingUp, Settings, Loader2,
   Cloud, CloudUpload, Database, ChevronUp,
@@ -26,11 +28,12 @@ import ExecutionModal from './components/ExecutionModal';
 import ItemCard from './components/ItemCard';
 import AddEditModal from './components/AddEditModal';
 import MonitorTab from './components/MonitorTab';
+import OpportunitiesTab from './components/OpportunitiesTab';
 
 const EMPTY_FORM = () => ({
-  id: null, ticker: '', type: 'CALL', direction: 'BUY', actionCategory: 'OPEN',
+  id: null, ticker: '', assetType: 'OPTION', type: 'CALL', direction: 'BUY', actionCategory: 'OPEN',
   strike: '', expiration: getLocalTodayString(), newStrike: '', newExpirationPeriod: '',
-  entryPrice: '', rollCredit: '0', contracts: 1, selectedPositionId: '',
+  entryPrice: '', rollCredit: '0', contracts: 1, selectedPositionId: '', leapsId: null,
   actionDate: getLocalTodayString(), notes: ''
 });
 
@@ -61,6 +64,15 @@ export default function App() {
   const [formData, setFormData] = useState(EMPTY_FORM());
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState(null);
+
+  const { deltaMap, loading: deltaLoading, fetchDeltas } = useLeapsDelta({ user });
+
+  // Auto-fetch deltas for all open LEAPS whenever positions change
+  useEffect(() => {
+    if (!user) return;
+    const leapsPositions = detectPMCC(positions).map(g => g.leapsPos);
+    if (leapsPositions.length > 0) fetchDeltas(leapsPositions);
+  }, [positions, user]);
 
   const handleSort = (key) => setSortConfig(prev =>
     prev.key === key ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' }
@@ -186,6 +198,24 @@ export default function App() {
       setMessageModal({ isOpen: true, title: '迁移失败', content: `❌ 错误信息: ${e.message}`, type: 'error' });
     } finally { setIsMigrating(false); }
   };
+
+  // Strategy tag map: positionId → 'CC' | 'PMCC'
+  // Built once from detectCC/detectPMCC so all lookups are O(1) by ID.
+  const strategyTagMap = useMemo(() => {
+    const map = {};
+    detectCC(positions).forEach(g => {
+      map[g.stockId] = 'CC';
+      g.openCalls.forEach(c => { map[c.id] = 'CC'; });
+      g.closedCalls.forEach(c => { map[c.id] = 'CC'; });
+    });
+    detectPMCC(positions).forEach(g => {
+      map[g.leapsId] = 'PMCC';
+      g.openLinkedCalls.forEach(c => { map[c.id] = 'PMCC'; });
+      g.closedLinkedCalls.forEach(c => { map[c.id] = 'PMCC'; });
+    });
+    return map;
+  }, [positions]);
+  const getStrategyTag = (item) => strategyTagMap[item.id] ?? null;
 
   // Calculation helpers (thin wrappers)
   const calculateNetBasis = (pos) => calcNetBasis(pos.entryPrice, pos.rollCredit, pos.contracts);
@@ -353,12 +383,36 @@ export default function App() {
                 行情扫描 (Monitor)
                 {activeTab === 'monitor' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
               </button>
+              <button onClick={() => setActiveTab('opportunities')} className={`pb-3 px-2 font-medium text-sm transition-all relative ${activeTab === 'opportunities' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>
+                策略机会
+                {activeTab === 'opportunities' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
+              </button>
             </div>
 
             <div className={activeTab === 'monitor' ? '' : 'hidden'}>
               <MonitorTab user={user} db={db} functions={functions} />
             </div>
-            {activeTab !== 'monitor' && (
+            {activeTab === 'opportunities' && (
+              <OpportunitiesTab
+                positions={positions}
+                user={user}
+                deltaMap={deltaMap}
+                deltaLoading={deltaLoading}
+                fetchDeltas={fetchDeltas}
+                onOpenAddModal={(group) => {
+                  setFormData(prev => ({
+                    ...EMPTY_FORM(),
+                    ticker: group.ticker,
+                    type: 'CALL',
+                    direction: 'SELL',
+                    leapsId: group.leapsId || null,
+                  }));
+                  setActiveTab('portfolio');
+                  setShowAddModal(true);
+                }}
+              />
+            )}
+            {activeTab !== 'monitor' && activeTab !== 'opportunities' && (
               <>
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-3">{activeTab === 'portfolio' ? '当前持仓 (Open Positions)' : '操作计划 (Planner)'}</h2>
@@ -594,7 +648,7 @@ export default function App() {
                             }).map(item => {
                             const concentration = item.type === 'PUT' && item.direction === 'SELL' ? getTickerConcentration(item.ticker) : 0;
                             return (
-                              <ItemCard key={item.id} item={item} type={activeTab} onEdit={openEdit} onDelete={deleteItem} onExecute={() => setExecutionPlan(item)} onDirectAction={handleDirectAction} onReopen={handleReopen} concentration={concentration} />
+                              <ItemCard key={item.id} item={item} type={activeTab} onEdit={openEdit} onDelete={deleteItem} onExecute={() => setExecutionPlan(item)} onDirectAction={handleDirectAction} onReopen={handleReopen} concentration={concentration} strategyTag={getStrategyTag(item)} delta={deltaMap[item.id] ?? null} />
                             );
                           })}
                         </div>
@@ -625,6 +679,8 @@ export default function App() {
                     onDirectAction={handleDirectAction}
                     onReopen={handleReopen}
                     concentration={concentration}
+                    strategyTag={getStrategyTag(item)}
+                    delta={deltaMap[item.id] ?? null}
                   />
                 );
               });

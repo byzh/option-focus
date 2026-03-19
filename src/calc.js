@@ -44,3 +44,49 @@ export function calcFinalPnL(direction, netBasis, closePrice, contracts) {
   const closingValue = cp * 100 * ct;
   return direction === 'SELL' ? netBasis - closingValue : closingValue - netBasis;
 }
+
+/**
+ * CC (Covered Call) break-even per share.
+ *   (stock.entryPrice × shares - realizedShortCallCredits) / shares
+ *
+ * @param {object} stockPos  — STOCK position: { entryPrice, contracts (shares) }
+ * @param {Array}  closedCalls — CLOSED SELL CALL positions linked to this stock
+ */
+export function calcCCBreakEven(stockPos, closedCalls) {
+  const entryPrice = parseFloat(stockPos.entryPrice) || 0;
+  const shares = parseInt(stockPos.contracts) || 1;
+  const totalCost = entryPrice * shares;
+
+  // Sum realized premiums from closed short calls (netBasis for SELL is credit received)
+  const realizedCredits = (closedCalls || []).reduce((sum, p) => {
+    const netBasis = calcNetBasis(p.entryPrice, p.rollCredit, p.contracts);
+    const closePrice = parseFloat(p.closePrice) || 0;
+    const pnl = calcFinalPnL(p.direction, netBasis, closePrice, p.contracts);
+    return sum + pnl;
+  }, 0);
+
+  return (totalCost - realizedCredits) / shares;
+}
+
+/**
+ * PMCC (Poor Man's Covered Call) break-even per share.
+ *   leaps.strike + (leaps.entryPrice × 100 × contracts - realizedShortCallCredits) / (100 × contracts)
+ *
+ * @param {object} leapsPos   — BUY CALL LEAPS position: { strike, entryPrice, contracts }
+ * @param {Array}  closedCalls — CLOSED SELL CALL positions linked to this LEAPS
+ */
+export function calcPMCCBreakEven(leapsPos, closedCalls) {
+  const strike = parseFloat(leapsPos.strike) || 0;
+  const entryPrice = parseFloat(leapsPos.entryPrice) || 0;
+  const contracts = parseInt(leapsPos.contracts) || 1;
+  const leapsCost = entryPrice * 100 * contracts;
+
+  const realizedCredits = (closedCalls || []).reduce((sum, p) => {
+    const netBasis = calcNetBasis(p.entryPrice, p.rollCredit, p.contracts);
+    const closePrice = parseFloat(p.closePrice) || 0;
+    const pnl = calcFinalPnL(p.direction, netBasis, closePrice, p.contracts);
+    return sum + pnl;
+  }, 0);
+
+  return strike + (leapsCost - realizedCredits) / (100 * contracts);
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcNetBasis, calcFinalPnL, calcBreakEven } from './calc';
+import { calcNetBasis, calcFinalPnL, calcBreakEven, calcCCBreakEven, calcPMCCBreakEven } from './calc';
 
 // ─── calcNetBasis ────────────────────────────────────────────────────────────
 // Formula: (entryPrice + rollCredit) × 100 × contracts
@@ -150,5 +150,93 @@ describe('calcBreakEven', () => {
 
   it('long put, no roll: strike=50, entry=2.50 → 47.50', () => {
     expect(calcBreakEven('PUT', 50, 2.50, 0)).toBeCloseTo(47.50);
+  });
+});
+
+// ─── calcCCBreakEven ──────────────────────────────────────────────────────────
+// Formula: (entryPrice × shares - realizedCredits) / shares
+// Only CLOSED short call P&L counts as realized credits.
+
+describe('calcCCBreakEven', () => {
+  const stockPos = { entryPrice: 235, contracts: 100 }; // 100 shares at $235
+
+  it('no closed calls: break-even equals entry price', () => {
+    expect(calcCCBreakEven(stockPos, [])).toBeCloseTo(235);
+  });
+
+  it('one closed call expired worthless ($2.00 entry, 1 contract): reduces break-even by $2', () => {
+    // SELL 1 contract at $2.00, expired worthless (closePrice=0) → pnl = +$200
+    // realizedCredits = 200, breakEven = (235×100 - 200)/100 = 233
+    const closedCall = { direction: 'SELL', entryPrice: 2.00, rollCredit: 0, contracts: 1, closePrice: 0 };
+    expect(calcCCBreakEven(stockPos, [closedCall])).toBeCloseTo(233);
+  });
+
+  it('two closed calls: cumulative credits reduce break-even', () => {
+    // Two $2.00 calls expired worthless → $400 total credits
+    // breakEven = (235×100 - 400)/100 = 231
+    const call = { direction: 'SELL', entryPrice: 2.00, rollCredit: 0, contracts: 1, closePrice: 0 };
+    expect(calcCCBreakEven(stockPos, [call, call])).toBeCloseTo(231);
+  });
+
+  it('closed call bought back at loss does not reduce break-even below entry', () => {
+    // SELL at $1.00, buy back at $3.00 → pnl = -$200
+    const losingCall = { direction: 'SELL', entryPrice: 1.00, rollCredit: 0, contracts: 1, closePrice: 3.00 };
+    // breakEven = (235×100 - (-200))/100 = 237
+    expect(calcCCBreakEven(stockPos, [losingCall])).toBeCloseTo(237);
+  });
+
+  it('string inputs are coerced', () => {
+    const s = { entryPrice: '235', contracts: '100' };
+    const call = { direction: 'SELL', entryPrice: '2.00', rollCredit: '0', contracts: '1', closePrice: '0' };
+    expect(calcCCBreakEven(s, [call])).toBeCloseTo(233);
+  });
+
+  it('null closedCalls defaults to empty', () => {
+    expect(calcCCBreakEven(stockPos, null)).toBeCloseTo(235);
+  });
+});
+
+// ─── calcPMCCBreakEven ────────────────────────────────────────────────────────
+// Formula: leaps.strike + (leaps.entryPrice×100×contracts - realizedCredits) / (100×contracts)
+
+describe('calcPMCCBreakEven', () => {
+  // LEAPS: $200 strike, bought at $40.00 (per share), 1 contract
+  // Net LEAPS cost = $40 × 100 = $4000
+  // Initial break-even = 200 + 4000/100 = $240
+  const leapsPos = { strike: 200, entryPrice: 40.00, contracts: 1 };
+
+  it('no closed calls: break-even = strike + entryPrice', () => {
+    expect(calcPMCCBreakEven(leapsPos, [])).toBeCloseTo(240);
+  });
+
+  it('one closed call expired worthless ($3.00 entry): reduces break-even by $3', () => {
+    // pnl = $300, breakEven = 200 + (4000 - 300)/100 = 237
+    const closedCall = { direction: 'SELL', entryPrice: 3.00, rollCredit: 0, contracts: 1, closePrice: 0 };
+    expect(calcPMCCBreakEven(leapsPos, [closedCall])).toBeCloseTo(237);
+  });
+
+  it('three closed calls accumulate correctly', () => {
+    // 3 × $3.00 calls expired worthless → $900 credits
+    // breakEven = 200 + (4000 - 900)/100 = 231
+    const call = { direction: 'SELL', entryPrice: 3.00, rollCredit: 0, contracts: 1, closePrice: 0 };
+    expect(calcPMCCBreakEven(leapsPos, [call, call, call])).toBeCloseTo(231);
+  });
+
+  it('two LEAPS contracts: break-even divides over total 200 shares', () => {
+    // LEAPS: 2 contracts → net cost $8000, breakEven = 200 + 8000/200 = 240
+    const leaps2 = { strike: 200, entryPrice: 40.00, contracts: 2 };
+    expect(calcPMCCBreakEven(leaps2, [])).toBeCloseTo(240);
+  });
+
+  it('with roll credit on closed call', () => {
+    // SELL at $3.00, rolled for -$0.50 (debit), then expired: netBasis = (3.00 - 0.50)×100 = 250
+    // close at 0 → pnl = 250
+    // breakEven = 200 + (4000 - 250)/100 = 237.50
+    const closedCall = { direction: 'SELL', entryPrice: 3.00, rollCredit: -0.50, contracts: 1, closePrice: 0 };
+    expect(calcPMCCBreakEven(leapsPos, [closedCall])).toBeCloseTo(237.50);
+  });
+
+  it('null closedCalls defaults to empty', () => {
+    expect(calcPMCCBreakEven(leapsPos, null)).toBeCloseTo(240);
   });
 });
