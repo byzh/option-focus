@@ -32,19 +32,19 @@ export function useOptionChain({ user, db }) {
         forceRefresh
       );
 
-      // Filter expirations by DTE
-      const now = new Date();
-      now.setHours(0, 0, 0, 0);
+      // Filter expirations by DTE — always use ET date so display is consistent
+      // regardless of user timezone (avoids off-by-one when local midnight ≠ ET midnight)
+      const etToday = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }));
       const rawExpirations = Array.isArray(data.expirations) ? data.expirations : [];
 
       const filtered = rawExpirations
         .filter(exp => {
-          const dte = exp['days-to-expiration'] ?? calculateDTE(exp['expiration-date'], now);
+          const dte = calculateDTE(exp['expiration-date'], etToday);
           return dte >= minDTE && dte <= maxDTE;
         })
         .map(exp => ({
           ...exp,
-          dte: exp['days-to-expiration'] ?? calculateDTE(exp['expiration-date'], now),
+          dte: calculateDTE(exp['expiration-date'], etToday),
         }));
 
       setChainData({ symbol, expirations: filtered });
