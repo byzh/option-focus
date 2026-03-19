@@ -110,7 +110,7 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
             </div>
             <div className="text-sm text-slate-500 dark:text-slate-400">
               初始: ${parseFloat(item.entryPrice).toFixed(2)} × {contracts}
-              {parseFloat(item.rollCredit) !== 0 && <span className={item.rollCredit > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}> {item.rollCredit > 0 ? '+' : ''}展期: ${parseFloat(item.rollCredit).toFixed(2)}</span>}
+              {parseFloat(item.rollCredit) !== 0 && <span className={item.rollCredit > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}> 展期: {item.rollCredit > 0 ? '+' : '-'}${Math.abs(parseFloat(item.rollCredit)).toFixed(2)}</span>}
             </div>
             {!isClosed && !isExpired && (
               <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">

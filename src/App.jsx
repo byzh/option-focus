@@ -258,8 +258,6 @@ export default function App() {
         try {
           await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, listType === 'portfolio' ? 'positions' : 'plans', id));
           setConfirmModal({ isOpen: false, title: '', content: '', onConfirm: () => {} });
-          const itemType = listType === 'portfolio' ? '持仓' : '备忘';
-          setMessageModal({ isOpen: true, title: '删除成功', content: `✅ ${itemType}已删除。`, type: 'info' });
         } catch (e) {
           setConfirmModal({ isOpen: false, title: '', content: '', onConfirm: () => {} });
           setMessageModal({ isOpen: true, title: '删除失败', content: `❌ 错误信息: ${e.message}`, type: 'error' });
@@ -400,7 +398,7 @@ export default function App() {
                 deltaLoading={deltaLoading}
                 fetchDeltas={fetchDeltas}
                 onOpenAddModal={(group) => {
-                  setFormData(prev => ({
+                  setFormData(() => ({
                     ...EMPTY_FORM(),
                     ticker: group.ticker,
                     type: 'CALL',
@@ -410,6 +408,7 @@ export default function App() {
                   setActiveTab('portfolio');
                   setShowAddModal(true);
                 }}
+                onDirectAction={handleDirectAction}
               />
             )}
             {activeTab !== 'monitor' && activeTab !== 'opportunities' && (

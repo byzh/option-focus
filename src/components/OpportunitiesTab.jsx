@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RefreshCw, AlertTriangle, TrendingUp, ChevronDown, ChevronUp, CheckCircle2, XCircle } from 'lucide-react';
+import { RefreshCw, AlertTriangle, TrendingUp, ChevronDown, ChevronUp, CheckCircle2, XCircle, StopCircle } from 'lucide-react';
 import { detectCC, detectPMCC } from '../utils/strategyDetect';
 import { assessLeapsHealth } from '../utils/leapsHealth';
 import Button from './ui/Button';
@@ -87,7 +87,7 @@ function SectionHeader({ title, count, expanded, onToggle }) {
   );
 }
 
-function CCCard({ group, onOpenAddModal }) {
+function CCCard({ group, onOpenAddModal, onDirectAction }) {
   const shares = parseInt(group.stockPos.contracts) || 0;
   const totalLots = Math.floor(shares / 100);
   const coveredLots = Math.min(group.coveredLots, totalLots);
@@ -156,10 +156,19 @@ function CCCard({ group, onOpenAddModal }) {
             const expiringSoon = dte !== null && dte <= 14;
             return (
               <div key={c.id} className={`flex justify-between items-center text-xs px-2.5 py-1.5 rounded-lg ${expiringSoon ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300' : 'bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300'}`}>
-                <span className="font-mono">${parseFloat(c.strike).toFixed(0)} × {c.contracts} 张</span>
                 <div className="flex items-center gap-2">
-                  {expiringSoon && <AlertTriangle size={11} className="text-amber-500" />}
+                  {expiringSoon && <AlertTriangle size={11} className="text-amber-500 shrink-0" />}
+                  <span className="font-mono">${parseFloat(c.strike).toFixed(0)}</span>
                   <span className="text-slate-400">{c.expiration}{dte !== null && ` (${dte}d)`}</span>
+                  <span className="font-mono">× {c.contracts} 张</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => onDirectAction(c, 'ROLL')} title="滚仓" className="p-1 rounded text-amber-500 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 transition-colors">
+                    <RefreshCw size={11} />
+                  </button>
+                  <button onClick={() => onDirectAction(c, 'CLOSE')} title="平仓" className="p-1 rounded text-slate-500 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 transition-colors">
+                    <StopCircle size={11} />
+                  </button>
                 </div>
               </div>
             );
@@ -174,7 +183,7 @@ function CCCard({ group, onOpenAddModal }) {
   );
 }
 
-function PMCCCard({ group, deltaMap, onOpenAddModal }) {
+function PMCCCard({ group, deltaMap, onOpenAddModal, onDirectAction }) {
   const dte = getDTE(group.leapsPos.expiration);
   const delta = deltaMap[group.leapsId];
   const health = assessLeapsHealth(dte, delta);
@@ -217,8 +226,8 @@ function PMCCCard({ group, deltaMap, onOpenAddModal }) {
         </div>
       )}
 
-      {/* Action prompt */}
-      {needsAction && (
+      {/* Action prompt — only meaningful when >1 contract (otherwise coverage grid already shows it) */}
+      {needsAction && leapsContracts > 1 && (
         <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
           <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
           <span className="text-xs text-amber-700 dark:text-amber-300">
@@ -280,10 +289,19 @@ function PMCCCard({ group, deltaMap, onOpenAddModal }) {
             const expiringSoon = cDte !== null && cDte <= 14;
             return (
               <div key={c.id} className={`flex justify-between items-center text-xs px-2.5 py-1.5 rounded-lg ${expiringSoon ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300' : 'bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300'}`}>
-                <span className="font-mono">${parseFloat(c.strike).toFixed(0)} × {c.contracts} 张</span>
                 <div className="flex items-center gap-2">
-                  {expiringSoon && <AlertTriangle size={11} className="text-amber-500" />}
+                  {expiringSoon && <AlertTriangle size={11} className="text-amber-500 shrink-0" />}
+                  <span className="font-mono">${parseFloat(c.strike).toFixed(0)}</span>
                   <span className="text-slate-400">{c.expiration}{cDte !== null && ` (${cDte}d)`}</span>
+                  <span className="font-mono">× {c.contracts} 张</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => onDirectAction(c, 'ROLL')} title="滚仓" className="p-1 rounded text-amber-500 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 transition-colors">
+                    <RefreshCw size={11} />
+                  </button>
+                  <button onClick={() => onDirectAction(c, 'CLOSE')} title="平仓" className="p-1 rounded text-slate-500 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 transition-colors">
+                    <StopCircle size={11} />
+                  </button>
                 </div>
               </div>
             );
@@ -298,7 +316,7 @@ function PMCCCard({ group, deltaMap, onOpenAddModal }) {
   );
 }
 
-export default function OpportunitiesTab({ positions, deltaMap, deltaLoading, fetchDeltas, onOpenAddModal }) {
+export default function OpportunitiesTab({ positions, deltaMap, deltaLoading, fetchDeltas, onOpenAddModal, onDirectAction }) {
   const [ccExpanded, setCcExpanded] = useState(true);
   const [pmccExpanded, setPmccExpanded] = useState(true);
 
@@ -336,7 +354,7 @@ export default function OpportunitiesTab({ positions, deltaMap, deltaLoading, fe
           <SectionHeader title="Covered Call (CC)" count={ccGroups.length} expanded={ccExpanded} onToggle={() => setCcExpanded(v => !v)} />
           {ccExpanded && (
             <div className="space-y-3">
-              {ccGroups.map(g => <CCCard key={g.stockId} group={g} onOpenAddModal={onOpenAddModal} />)}
+              {ccGroups.map(g => <CCCard key={g.stockId} group={g} onOpenAddModal={onOpenAddModal} onDirectAction={onDirectAction} />)}
             </div>
           )}
         </div>
@@ -347,7 +365,7 @@ export default function OpportunitiesTab({ positions, deltaMap, deltaLoading, fe
           <SectionHeader title="Poor Man's Covered Call (PMCC)" count={pmccGroups.length} expanded={pmccExpanded} onToggle={() => setPmccExpanded(v => !v)} />
           {pmccExpanded && (
             <div className="space-y-3">
-              {pmccGroups.map(g => <PMCCCard key={g.leapsId} group={g} deltaMap={deltaMap} onOpenAddModal={onOpenAddModal} />)}
+              {pmccGroups.map(g => <PMCCCard key={g.leapsId} group={g} deltaMap={deltaMap} onOpenAddModal={onOpenAddModal} onDirectAction={onDirectAction} />)}
             </div>
           )}
         </div>
