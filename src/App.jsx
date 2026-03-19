@@ -409,6 +409,7 @@ export default function App() {
                   setShowAddModal(true);
                 }}
                 onDirectAction={handleDirectAction}
+                onReopen={handleReopen}
               />
             )}
             {activeTab !== 'monitor' && activeTab !== 'opportunities' && (

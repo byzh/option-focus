@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { RefreshCw, AlertTriangle, TrendingUp, ChevronDown, ChevronUp, CheckCircle2, XCircle, StopCircle } from 'lucide-react';
+import { RefreshCw, AlertTriangle, TrendingUp, ChevronDown, ChevronUp, CheckCircle2, XCircle, StopCircle, RotateCcw } from 'lucide-react';
 import { detectCC, detectPMCC } from '../utils/strategyDetect';
 import { assessLeapsHealth } from '../utils/leapsHealth';
+import { calcNetBasis, calcFinalPnL } from '../calc';
 import Button from './ui/Button';
 
 function getDTE(expiration) {
@@ -87,7 +88,7 @@ function SectionHeader({ title, count, expanded, onToggle }) {
   );
 }
 
-function CCCard({ group, onOpenAddModal, onDirectAction }) {
+function CCCard({ group, onOpenAddModal, onDirectAction, onReopen }) {
   const shares = parseInt(group.stockPos.contracts) || 0;
   const totalLots = Math.floor(shares / 100);
   const coveredLots = Math.min(group.coveredLots, totalLots);
@@ -177,13 +178,34 @@ function CCCard({ group, onOpenAddModal, onDirectAction }) {
       )}
 
       {group.closedCalls.length > 0 && (
-        <div className="text-xs text-slate-400">历史已收 Call 权利金: {group.closedCalls.length} 次</div>
+        <div className="space-y-1">
+          <div className="text-xs text-slate-400 font-medium">已平仓 Short Call</div>
+          {group.closedCalls.map(c => {
+            const nb = calcNetBasis(c.entryPrice, c.rollCredit, c.contracts);
+            const pnl = calcFinalPnL(c.direction, nb, parseFloat(c.closePrice) || 0, c.contracts);
+            return (
+              <div key={c.id} className="flex justify-between items-center text-xs px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono">${parseFloat(c.strike).toFixed(0)}</span>
+                  <span>{c.expiration}</span>
+                  <span className="font-mono">× {c.contracts} 张</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`font-mono font-semibold ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{pnl >= 0 ? '+' : '-'}${Math.abs(pnl).toFixed(2)}</span>
+                  <button onClick={() => onReopen(c)} title="重新开仓" className="p-1 rounded text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 transition-colors">
+                    <RotateCcw size={11} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
 }
 
-function PMCCCard({ group, deltaMap, onOpenAddModal, onDirectAction }) {
+function PMCCCard({ group, deltaMap, onOpenAddModal, onDirectAction, onReopen }) {
   const dte = getDTE(group.leapsPos.expiration);
   const delta = deltaMap[group.leapsId];
   const health = assessLeapsHealth(dte, delta);
@@ -310,13 +332,34 @@ function PMCCCard({ group, deltaMap, onOpenAddModal, onDirectAction }) {
       )}
 
       {group.closedLinkedCalls.length > 0 && (
-        <div className="text-xs text-slate-400">历史已收 Call 权利金: {group.closedLinkedCalls.length} 次</div>
+        <div className="space-y-1">
+          <div className="text-xs text-slate-400 font-medium">已平仓 Short Call</div>
+          {group.closedLinkedCalls.map(c => {
+            const nb = calcNetBasis(c.entryPrice, c.rollCredit, c.contracts);
+            const pnl = calcFinalPnL(c.direction, nb, parseFloat(c.closePrice) || 0, c.contracts);
+            return (
+              <div key={c.id} className="flex justify-between items-center text-xs px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono">${parseFloat(c.strike).toFixed(0)}</span>
+                  <span>{c.expiration}</span>
+                  <span className="font-mono">× {c.contracts} 张</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`font-mono font-semibold ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{pnl >= 0 ? '+' : '-'}${Math.abs(pnl).toFixed(2)}</span>
+                  <button onClick={() => onReopen(c)} title="重新开仓" className="p-1 rounded text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 transition-colors">
+                    <RotateCcw size={11} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
 }
 
-export default function OpportunitiesTab({ positions, deltaMap, deltaLoading, fetchDeltas, onOpenAddModal, onDirectAction }) {
+export default function OpportunitiesTab({ positions, deltaMap, deltaLoading, fetchDeltas, onOpenAddModal, onDirectAction, onReopen }) {
   const [ccExpanded, setCcExpanded] = useState(true);
   const [pmccExpanded, setPmccExpanded] = useState(true);
 
@@ -354,7 +397,7 @@ export default function OpportunitiesTab({ positions, deltaMap, deltaLoading, fe
           <SectionHeader title="Covered Call (CC)" count={ccGroups.length} expanded={ccExpanded} onToggle={() => setCcExpanded(v => !v)} />
           {ccExpanded && (
             <div className="space-y-3">
-              {ccGroups.map(g => <CCCard key={g.stockId} group={g} onOpenAddModal={onOpenAddModal} onDirectAction={onDirectAction} />)}
+              {ccGroups.map(g => <CCCard key={g.stockId} group={g} onOpenAddModal={onOpenAddModal} onDirectAction={onDirectAction} onReopen={onReopen} />)}
             </div>
           )}
         </div>
@@ -365,7 +408,7 @@ export default function OpportunitiesTab({ positions, deltaMap, deltaLoading, fe
           <SectionHeader title="Poor Man's Covered Call (PMCC)" count={pmccGroups.length} expanded={pmccExpanded} onToggle={() => setPmccExpanded(v => !v)} />
           {pmccExpanded && (
             <div className="space-y-3">
-              {pmccGroups.map(g => <PMCCCard key={g.leapsId} group={g} deltaMap={deltaMap} onOpenAddModal={onOpenAddModal} onDirectAction={onDirectAction} />)}
+              {pmccGroups.map(g => <PMCCCard key={g.leapsId} group={g} deltaMap={deltaMap} onOpenAddModal={onOpenAddModal} onDirectAction={onDirectAction} onReopen={onReopen} />)}
             </div>
           )}
         </div>
