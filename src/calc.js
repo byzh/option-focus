@@ -46,6 +46,22 @@ export function calcFinalPnL(direction, netBasis, closePrice, contracts) {
 }
 
 /**
+ * Sum of realized P&L from a list of closed SELL CALL positions.
+ * Used to reduce cost basis in CC/PMCC break-even and net cost calculations.
+ *
+ * @param {Array} closedCalls — CLOSED SELL CALL positions
+ * @returns {number} total realized credits in dollars
+ */
+export function calcRealizedCredits(closedCalls) {
+  return (closedCalls || []).reduce((sum, p) => {
+    const netBasis = calcNetBasis(p.entryPrice, p.rollCredit, p.contracts);
+    const closePrice = parseFloat(p.closePrice) || 0;
+    const pnl = calcFinalPnL(p.direction, netBasis, closePrice, p.contracts);
+    return sum + pnl;
+  }, 0);
+}
+
+/**
  * CC (Covered Call) break-even per share.
  *   (stock.entryPrice × shares - realizedShortCallCredits) / shares
  *
@@ -56,37 +72,31 @@ export function calcCCBreakEven(stockPos, closedCalls) {
   const entryPrice = parseFloat(stockPos.entryPrice) || 0;
   const shares = parseInt(stockPos.contracts) || 1;
   const totalCost = entryPrice * shares;
+  return (totalCost - calcRealizedCredits(closedCalls)) / shares;
+}
 
-  // Sum realized premiums from closed short calls (netBasis for SELL is credit received)
-  const realizedCredits = (closedCalls || []).reduce((sum, p) => {
-    const netBasis = calcNetBasis(p.entryPrice, p.rollCredit, p.contracts);
-    const closePrice = parseFloat(p.closePrice) || 0;
-    const pnl = calcFinalPnL(p.direction, netBasis, closePrice, p.contracts);
-    return sum + pnl;
-  }, 0);
-
-  return (totalCost - realizedCredits) / shares;
+/**
+ * PMCC adjusted net cost in dollars.
+ *   leaps.entryPrice × 100 × contracts - realizedShortCallCredits
+ *
+ * @param {object} leapsPos   — BUY CALL LEAPS position: { entryPrice, contracts }
+ * @param {Array}  closedCalls — CLOSED SELL CALL positions linked to this LEAPS
+ */
+export function calcPMCCNetCost(leapsPos, closedCalls) {
+  const entryPrice = parseFloat(leapsPos.entryPrice) || 0;
+  const contracts = parseInt(leapsPos.contracts) || 1;
+  return entryPrice * 100 * contracts - calcRealizedCredits(closedCalls);
 }
 
 /**
  * PMCC (Poor Man's Covered Call) break-even per share.
- *   leaps.strike + (leaps.entryPrice × 100 × contracts - realizedShortCallCredits) / (100 × contracts)
+ *   leaps.strike + calcPMCCNetCost / (100 × contracts)
  *
  * @param {object} leapsPos   — BUY CALL LEAPS position: { strike, entryPrice, contracts }
  * @param {Array}  closedCalls — CLOSED SELL CALL positions linked to this LEAPS
  */
 export function calcPMCCBreakEven(leapsPos, closedCalls) {
   const strike = parseFloat(leapsPos.strike) || 0;
-  const entryPrice = parseFloat(leapsPos.entryPrice) || 0;
   const contracts = parseInt(leapsPos.contracts) || 1;
-  const leapsCost = entryPrice * 100 * contracts;
-
-  const realizedCredits = (closedCalls || []).reduce((sum, p) => {
-    const netBasis = calcNetBasis(p.entryPrice, p.rollCredit, p.contracts);
-    const closePrice = parseFloat(p.closePrice) || 0;
-    const pnl = calcFinalPnL(p.direction, netBasis, closePrice, p.contracts);
-    return sum + pnl;
-  }, 0);
-
-  return strike + (leapsCost - realizedCredits) / (100 * contracts);
+  return strike + calcPMCCNetCost(leapsPos, closedCalls) / (100 * contracts);
 }

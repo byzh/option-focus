@@ -1,4 +1,4 @@
-import { calcCCBreakEven, calcPMCCBreakEven } from '../calc';
+import { calcCCBreakEven, calcPMCCBreakEven, calcPMCCNetCost } from '../calc';
 
 /**
  * Detect CC (Covered Call) opportunities from a positions array.
@@ -77,7 +77,8 @@ export function detectPMCC(positions) {
     const coveredContracts = openLinkedCalls.reduce((sum, p) => sum + (parseInt(p.contracts) || 0), 0);
     const uncoveredContracts = Math.max(0, leapsContracts - coveredContracts);
     const breakEven = calcPMCCBreakEven(leapsPos, closedLinkedCalls);
+    const adjustedNetCost = calcPMCCNetCost(leapsPos, closedLinkedCalls);
 
-    return { leapsId: leapsPos.id, ticker, leapsPos, openLinkedCalls, closedLinkedCalls, coveredContracts, uncoveredContracts, breakEven };
+    return { leapsId: leapsPos.id, ticker, leapsPos, openLinkedCalls, closedLinkedCalls, coveredContracts, uncoveredContracts, breakEven, adjustedNetCost };
   });
 }

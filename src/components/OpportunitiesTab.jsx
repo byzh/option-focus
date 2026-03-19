@@ -248,9 +248,20 @@ function PMCCCard({ group, deltaMap, onOpenAddModal }) {
       <div className="grid grid-cols-2 gap-3 text-sm pt-1 border-t border-slate-100 dark:border-slate-700">
         <div>
           <div className="text-xs text-slate-400 mb-0.5">LEAPS 净成本</div>
-          <div className="font-mono text-slate-600 dark:text-slate-300">
-            ${(parseFloat(group.leapsPos.entryPrice) * 100 * leapsContracts).toFixed(0)}
-          </div>
+          {group.closedLinkedCalls.length > 0 ? (
+            <div>
+              <div className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                ${group.adjustedNetCost.toFixed(0)}
+              </div>
+              <div className="text-xs text-slate-400">
+                原始 ${(parseFloat(group.leapsPos.entryPrice) * 100 * leapsContracts).toFixed(0)}，已摊薄 ${(parseFloat(group.leapsPos.entryPrice) * 100 * leapsContracts - group.adjustedNetCost).toFixed(0)}
+              </div>
+            </div>
+          ) : (
+            <div className="font-mono text-slate-600 dark:text-slate-300">
+              ${(parseFloat(group.leapsPos.entryPrice) * 100 * leapsContracts).toFixed(0)}
+            </div>
+          )}
         </div>
         <div>
           <div className="text-xs text-slate-400 mb-0.5">摊薄后盈亏平衡</div>
@@ -287,7 +298,7 @@ function PMCCCard({ group, deltaMap, onOpenAddModal }) {
   );
 }
 
-export default function OpportunitiesTab({ positions, user, deltaMap, deltaLoading, fetchDeltas, onOpenAddModal }) {
+export default function OpportunitiesTab({ positions, deltaMap, deltaLoading, fetchDeltas, onOpenAddModal }) {
   const [ccExpanded, setCcExpanded] = useState(true);
   const [pmccExpanded, setPmccExpanded] = useState(true);
 

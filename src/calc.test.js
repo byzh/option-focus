@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcNetBasis, calcFinalPnL, calcBreakEven, calcCCBreakEven, calcPMCCBreakEven } from './calc';
+import { calcNetBasis, calcFinalPnL, calcBreakEven, calcCCBreakEven, calcPMCCBreakEven, calcPMCCNetCost, calcRealizedCredits } from './calc';
 
 // ─── calcNetBasis ────────────────────────────────────────────────────────────
 // Formula: (entryPrice + rollCredit) × 100 × contracts
@@ -193,6 +193,67 @@ describe('calcCCBreakEven', () => {
 
   it('null closedCalls defaults to empty', () => {
     expect(calcCCBreakEven(stockPos, null)).toBeCloseTo(235);
+  });
+});
+
+// ─── calcRealizedCredits ──────────────────────────────────────────────────────
+// Sum of actual P&L from closed SELL CALL positions.
+
+describe('calcRealizedCredits', () => {
+  it('empty array returns 0', () => {
+    expect(calcRealizedCredits([])).toBe(0);
+  });
+
+  it('null returns 0', () => {
+    expect(calcRealizedCredits(null)).toBe(0);
+  });
+
+  it('one expired worthless call: full premium returned', () => {
+    const call = { direction: 'SELL', entryPrice: 3.00, rollCredit: 0, contracts: 1, closePrice: 0 };
+    expect(calcRealizedCredits([call])).toBeCloseTo(300);
+  });
+
+  it('one call closed at profit: actual net returned', () => {
+    // SELL at $3.00, closed at $1.00 → pnl = 300 - 100 = 200
+    const call = { direction: 'SELL', entryPrice: 3.00, rollCredit: 0, contracts: 1, closePrice: 1.00 };
+    expect(calcRealizedCredits([call])).toBeCloseTo(200);
+  });
+
+  it('multiple calls accumulate correctly', () => {
+    const c1 = { direction: 'SELL', entryPrice: 3.00, rollCredit: 0, contracts: 1, closePrice: 0 };   // +300
+    const c2 = { direction: 'SELL', entryPrice: 2.00, rollCredit: 0, contracts: 1, closePrice: 0.50 }; // +150
+    expect(calcRealizedCredits([c1, c2])).toBeCloseTo(450);
+  });
+});
+
+// ─── calcPMCCNetCost ──────────────────────────────────────────────────────────
+// Formula: leaps.entryPrice × 100 × contracts - realizedCredits
+
+describe('calcPMCCNetCost', () => {
+  const leapsPos = { strike: 200, entryPrice: 40.00, contracts: 1 }; // raw cost = $4000
+
+  it('no closed calls: returns raw LEAPS cost', () => {
+    expect(calcPMCCNetCost(leapsPos, [])).toBeCloseTo(4000);
+  });
+
+  it('one expired call reduces net cost', () => {
+    const call = { direction: 'SELL', entryPrice: 3.00, rollCredit: 0, contracts: 1, closePrice: 0 };
+    expect(calcPMCCNetCost(leapsPos, [call])).toBeCloseTo(3700);
+  });
+
+  it('multiple calls accumulate', () => {
+    const call = { direction: 'SELL', entryPrice: 3.00, rollCredit: 0, contracts: 1, closePrice: 0 };
+    expect(calcPMCCNetCost(leapsPos, [call, call, call])).toBeCloseTo(3100);
+  });
+
+  it('2 LEAPS contracts: raw cost $8000, one closed call reduces it', () => {
+    const leaps2 = { strike: 200, entryPrice: 40.00, contracts: 2 };
+    const call = { direction: 'SELL', entryPrice: 3.00, rollCredit: 0, contracts: 1, closePrice: 0 };
+    expect(calcPMCCNetCost(leaps2, [call])).toBeCloseTo(7700);
+  });
+
+  it('null closedCalls defaults to 0 credits', () => {
+    expect(calcPMCCNetCost(leapsPos, null)).toBeCloseTo(4000);
   });
 });
 
