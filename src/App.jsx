@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { calcNetBasis, calcFinalPnL } from './calc';
 import { detectCC, detectPMCC } from './utils/strategyDetect';
 import { useLeapsDelta } from './hooks/useLeapsDelta';
@@ -44,6 +44,18 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('portfolio');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileMenuRef = useRef(null);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const handler = (e) => {
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target)) {
+        setMobileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [mobileMenuOpen]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [positions, setPositions] = useState([]);
   const [plans, setPlans] = useState([]);
@@ -397,7 +409,7 @@ export default function App() {
               <button onClick={() => setActiveTab('opportunities')} className={`pb-3 px-2 font-medium text-sm transition-all relative shrink-0 whitespace-nowrap ${activeTab === 'opportunities' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'}`}>
                 策略机会 (Opportunities){activeTab === 'opportunities' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
               </button>
-              <div className="ml-auto relative">
+              <div className="ml-auto relative" ref={mobileMenuRef}>
                 <button onClick={() => setMobileMenuOpen(v => !v)} className={`pb-3 px-2 flex items-center gap-1 text-sm transition-all ${['monitor','planner'].includes(activeTab) ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'}`}>
                   <Menu size={16} />
                   {activeTab === 'monitor' && <span className="font-medium">行情扫描</span>}
