@@ -1,4 +1,5 @@
 import React from 'react';
+import { calculateDTE } from '../utils/dateUtils';
 import { Loader2 } from 'lucide-react';
 import Card from './ui/Card';
 import Button from './ui/Button';
@@ -19,12 +20,7 @@ function AddEditModal({ formData, setFormData, onSubmit, onClose, activeTab, pos
         if (p.type !== 'CALL' || p.direction !== 'BUY') return false;
         if (formData.ticker && p.ticker !== formData.ticker) return false;
         if (!p.expiration) return false;
-        const exp = new Date(p.expiration);
-        const now = new Date();
-        exp.setHours(0, 0, 0, 0);
-        now.setHours(0, 0, 0, 0);
-        const dte = Math.ceil((exp - now) / 86400000);
-        return dte > 90;
+        return (calculateDTE(p.expiration) ?? 0) > 90;
       })
     : [];
 
@@ -137,10 +133,7 @@ function AddEditModal({ formData, setFormData, onSubmit, onClose, activeTab, pos
               >
                 <option value="" className="bg-white dark:bg-slate-700 text-slate-900 dark:text-white">-- 无关联 LEAPS --</option>
                 {leapsCandidates.map(p => {
-                  const exp = new Date(p.expiration);
-                  const now = new Date();
-                  exp.setHours(0, 0, 0, 0); now.setHours(0, 0, 0, 0);
-                  const dte = Math.ceil((exp - now) / 86400000);
+                  const dte = calculateDTE(p.expiration) ?? 0;
                   return (
                     <option key={p.id} value={p.id} className="bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
                       {p.ticker} ${p.strike} {p.expiration} ({dte}d)

@@ -33,3 +33,16 @@ export const isExpired = (expirationDate) => {
   now.setHours(0, 0, 0, 0);
   return now > exp;
 };
+
+/**
+ * Days to expiration from today (local midnight). Returns null for empty input.
+ * Positive = future, 0 = today, negative = past.
+ */
+export const calculateDTE = (expirationDate) => {
+  if (!expirationDate) return null;
+  const exp = new Date(expirationDate);
+  const now = new Date();
+  exp.setHours(0, 0, 0, 0);
+  now.setHours(0, 0, 0, 0);
+  return Math.ceil((exp - now) / 86400000);
+};

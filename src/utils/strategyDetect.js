@@ -1,4 +1,5 @@
 import { calcCCBreakEven, calcPMCCBreakEven, calcPMCCNetCost } from '../calc';
+import { calculateDTE } from './dateUtils';
 
 /**
  * Detect CC (Covered Call) opportunities from a positions array.
@@ -49,18 +50,14 @@ export function detectCC(positions) {
  * @returns {Array} [{ leapsId, ticker, leapsPos, openLinkedCalls, closedLinkedCalls, coveredContracts, uncoveredContracts, breakEven }]
  */
 export function detectPMCC(positions) {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
+
 
   const leapsPositions = positions.filter(p => {
     if (p.status === 'CLOSED') return false;
     if (p.assetType === 'STOCK') return false;
     if (p.type !== 'CALL' || p.direction !== 'BUY') return false;
     if (!p.expiration) return false;
-    const exp = new Date(p.expiration);
-    exp.setHours(0, 0, 0, 0);
-    const dte = Math.ceil((exp - now) / 86400000);
-    return dte > 90;
+    return (calculateDTE(p.expiration) ?? 0) > 90;
   });
 
   if (leapsPositions.length === 0) return [];

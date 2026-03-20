@@ -15,7 +15,7 @@ import {
 } from 'firebase/firestore';
 
 import { app, auth, db, functions, initError, APP_ID } from './firebase/firebaseInit';
-import { getLocalTodayString, isExpiredByTwoDays, isExpired } from './utils/dateUtils';
+import { getLocalTodayString, isExpiredByTwoDays, isExpired, calculateDTE } from './utils/dateUtils';
 
 import Card from './components/ui/Card';
 import Button from './components/ui/Button';
@@ -117,12 +117,7 @@ export default function App() {
       const avgCost = totalCost > 0 ? totalCost / totalContracts : 0;
       const activeItems = items.filter(p => p.status !== 'CLOSED' && !isExpiredByTwoDays(p.expiration));
       const earliestDTE = activeItems.length > 0 ? Math.min(...activeItems.map(p => {
-        if (!p.expiration) return Infinity;
-        const exp = new Date(p.expiration);
-        const now = new Date();
-        exp.setHours(0, 0, 0, 0);
-        now.setHours(0, 0, 0, 0);
-        return Math.ceil((exp - now) / 86400000);
+        return calculateDTE(p.expiration) ?? Infinity;
       })) : Infinity;
       return { ticker, items, itemCount, openCount, totalContracts, totalCost, avgCost, earliestDTE };
     });
@@ -709,8 +704,7 @@ export default function App() {
                   const aClosed = a.status === 'CLOSED';
                   const bClosed = b.status === 'CLOSED';
                   if (aClosed !== bClosed) return aClosed ? 1 : -1;
-                  const today = new Date(); today.setHours(0, 0, 0, 0);
-                  const getDays = (item) => item.expiration ? Math.ceil((new Date(item.expiration + 'T00:00:00') - today) / 86400000) : Infinity;
+                  const getDays = (item) => calculateDTE(item.expiration) ?? Infinity;
                   return (getDays(a) - getDays(b)) * dir;
                 }
                 return (b.dateOpened || '').localeCompare(a.dateOpened || '') * dir;

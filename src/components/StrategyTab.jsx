@@ -4,15 +4,7 @@ import { detectCC, detectPMCC } from '../utils/strategyDetect';
 import { assessLeapsHealth } from '../utils/leapsHealth';
 import { calcNetBasis, calcFinalPnL } from '../calc';
 import Button from './ui/Button';
-
-function getDTE(expiration) {
-  if (!expiration) return null;
-  const exp = new Date(expiration);
-  const now = new Date();
-  exp.setHours(0, 0, 0, 0);
-  now.setHours(0, 0, 0, 0);
-  return Math.ceil((exp - now) / 86400000);
-}
+import { calculateDTE } from '../utils/dateUtils';
 
 /**
  * Visual lot-grid: N green boxes (covered) + M amber boxes (uncovered).
@@ -153,7 +145,7 @@ function CCCard({ group, onOpenAddModal, onDirectAction, onReopen }) {
         <div className="space-y-1">
           <div className="text-xs text-slate-400 font-medium">持有 Short Call</div>
           {group.openCalls.map(c => {
-            const dte = getDTE(c.expiration);
+            const dte = calculateDTE(c.expiration);
             const expiringSoon = dte !== null && dte <= 14;
             return (
               <div key={c.id} className={`flex justify-between items-center text-xs px-2.5 py-1.5 rounded-lg ${expiringSoon ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300' : 'bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300'}`}>
@@ -206,7 +198,7 @@ function CCCard({ group, onOpenAddModal, onDirectAction, onReopen }) {
 }
 
 function PMCCCard({ group, deltaMap, onOpenAddModal, onDirectAction, onReopen }) {
-  const dte = getDTE(group.leapsPos.expiration);
+  const dte = calculateDTE(group.leapsPos.expiration);
   const delta = deltaMap[group.leapsId];
   const health = assessLeapsHealth(dte, delta);
   const leapsContracts = parseInt(group.leapsPos.contracts) || 1;
@@ -307,7 +299,7 @@ function PMCCCard({ group, deltaMap, onOpenAddModal, onDirectAction, onReopen })
         <div className="space-y-1">
           <div className="text-xs text-slate-400 font-medium">持有 Short Call</div>
           {group.openLinkedCalls.map(c => {
-            const cDte = getDTE(c.expiration);
+            const cDte = calculateDTE(c.expiration);
             const expiringSoon = cDte !== null && cDte <= 14;
             return (
               <div key={c.id} className={`flex justify-between items-center text-xs px-2.5 py-1.5 rounded-lg ${expiringSoon ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300' : 'bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300'}`}>

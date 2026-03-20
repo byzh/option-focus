@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { calcNetBasis, calcFinalPnL, calcBreakEven } from '../calc';
 import { assessLeapsHealth } from '../utils/leapsHealth';
-import { isExpired as checkExpired } from '../utils/dateUtils';
+import { isExpired as checkExpired, calculateDTE } from '../utils/dateUtils';
 import Card from './ui/Card';
 import Button from './ui/Button';
 
@@ -51,14 +51,7 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
     const isClosed = item.status === 'CLOSED';
     const isExpired = !isClosed && checkExpired(item.expiration);
 
-    const daysUntilExpiration = (() => {
-      if (isClosed || isExpired || !item.expiration) return null;
-      const exp = new Date(item.expiration);
-      const now = new Date();
-      exp.setHours(0, 0, 0, 0);
-      now.setHours(0, 0, 0, 0);
-      return Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
-    })();
+    const daysUntilExpiration = (isClosed || isExpired || !item.expiration) ? null : calculateDTE(item.expiration);
     const isExpiringSoon = daysUntilExpiration !== null && daysUntilExpiration <= 7;
     let finalPnL = null;
     if (isClosed || isExpired) {

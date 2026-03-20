@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { doc, setDoc, updateDoc, getDoc } from 'firebase/firestore';
 import { callTastytradeApi } from '../utils/apiClient';
-import { getETDateString } from '../utils/dateUtils';
+import { getETDateString, calculateDTE } from '../utils/dateUtils';
 
 const APP_ID = 'option-focus-v2';
 const CHAIN_DELAY_MS = 350; // ~2.8 req/s, well within TastyTrade rate limits
@@ -39,8 +39,6 @@ export function useSkewAutoJob({ user, db, symbols }) {
 
       // Step 1: Fetch option chains, collect all strike subscriptions
       const allSubs = []; // { streamerSymbol, ticker, expDate, price, side }
-      const now = new Date();
-
       for (let i = 0; i < symbols.length; i++) {
         if (abortRef.current) break;
         const symbol = symbols[i];
@@ -52,7 +50,7 @@ export function useSkewAutoJob({ user, db, symbols }) {
           expirations.forEach(exp => {
             const expDate = exp['expiration-date'];
             if (!expDate) return;
-            const dte = Math.ceil((new Date(expDate) - now) / 86400000);
+            const dte = calculateDTE(expDate) ?? 0;
             if (dte < 0 || dte > 45) return;
 
             (exp.strikes || []).forEach(strike => {
