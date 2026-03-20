@@ -143,8 +143,8 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
               <div className="text-xs text-slate-400 font-bold uppercase">{isClosed || isExpired ? '最终盈亏 (P&L)' : '总成本 (NET BASIS)'}</div>
               <div className={`text-xl font-mono font-bold ${(isClosed || isExpired) ? (finalPnL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400') : (netBasis >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}`}>
                 {(isClosed || isExpired)
-                  ? `${finalPnL >= 0 ? '+' : '-'}$${Math.abs(finalPnL).toFixed(2)}`
-                  : `${netBasis >= 0 ? '+' : '-'}$${Math.abs(netBasis).toFixed(0)}`}
+                  ? `${finalPnL >= 0 ? '+' : '-'}$${Math.abs(finalPnL).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : `${netBasis >= 0 ? '+' : '-'}$${Math.abs(netBasis).toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
               </div>
             </div>
             {/* Action buttons */}
