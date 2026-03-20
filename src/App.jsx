@@ -410,10 +410,9 @@ export default function App() {
                 策略机会 (Strategy){activeTab === 'opportunities' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
               </button>
               <div className="ml-auto relative" ref={mobileMenuRef}>
-                <button onClick={() => setMobileMenuOpen(v => !v)} className={`pb-3 px-2 flex items-center gap-1 text-sm transition-all ${['monitor','planner'].includes(activeTab) ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'}`}>
+                <button onClick={() => setMobileMenuOpen(v => !v)} className={`pb-3 px-2 flex items-center gap-1 text-sm transition-all relative ${['monitor','planner'].includes(activeTab) ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'}`}>
                   <Menu size={16} />
-                  {activeTab === 'monitor' && <span className="font-medium">行情扫描</span>}
-                  {activeTab === 'planner' && <span className="font-medium flex items-center gap-1">交易备忘{todaysPlanCount > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold animate-pulse">{todaysPlanCount}</span>}</span>}
+                  {todaysPlanCount > 0 && <span className="bg-red-500 text-white text-[10px] px-1 py-0.5 rounded-full font-bold animate-pulse">{todaysPlanCount}</span>}
                   {['monitor','planner'].includes(activeTab) && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
                 </button>
                 {mobileMenuOpen && (
