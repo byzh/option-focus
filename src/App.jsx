@@ -456,7 +456,10 @@ export default function App() {
             {activeTab !== 'monitor' && activeTab !== 'opportunities' && (
               <>
             <div className="flex justify-between items-center mb-6 gap-3">
-              <h2 className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-3 min-w-0 truncate">{activeTab === 'portfolio' ? '当前持仓 (Open Positions)' : '操作计划 (Planner)'}</h2>
+              <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">{activeTab === 'portfolio' ? '当前持仓' : '操作计划'}</div>
+                <div className="text-xs text-slate-400">{activeTab === 'portfolio' ? 'Open Positions' : 'Planner'}</div>
+              </div>
               <div className="flex gap-2 shrink-0"><Button onClick={() => setShowAddModal(true)}><Plus size={18} /><span className="whitespace-nowrap">{activeTab === 'portfolio' ? '记录持仓' : '新增备忘'}</span></Button></div>
             </div>
 
