@@ -160,7 +160,7 @@ function CCCard({ group, onOpenAddModal, onDirectAction, onReopen }) {
                 <div className="flex items-center gap-2">
                   {expiringSoon && <AlertTriangle size={11} className="text-amber-500 shrink-0" />}
                   <span className="font-mono">${parseFloat(c.strike).toFixed(0)}</span>
-                  <span className="text-slate-400">{c.expiration}{dte !== null && ` (${dte}d)`}</span>
+                  <span className="">{c.expiration}{dte !== null && ` (${dte}d)`}</span>
                   <span className="font-mono">× {parseInt(c.contracts) || 1}</span><span> 张</span>
                 </div>
                 <div className="flex items-center gap-1">
@@ -314,7 +314,7 @@ function PMCCCard({ group, deltaMap, onOpenAddModal, onDirectAction, onReopen })
                 <div className="flex items-center gap-2">
                   {expiringSoon && <AlertTriangle size={11} className="text-amber-500 shrink-0" />}
                   <span className="font-mono">${parseFloat(c.strike).toFixed(0)}</span>
-                  <span className="text-slate-400">{c.expiration}{cDte !== null && ` (${cDte}d)`}</span>
+                  <span className="">{c.expiration}{cDte !== null && ` (${cDte}d)`}</span>
                   <span className="font-mono">× {parseInt(c.contracts) || 1}</span><span> 张</span>
                 </div>
                 <div className="flex items-center gap-1">
