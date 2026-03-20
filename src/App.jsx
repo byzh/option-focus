@@ -369,19 +369,19 @@ export default function App() {
           </Card>
         ) : (
           <>
-            <div className="flex gap-4 mb-6 border-b border-slate-200 dark:border-slate-700 pb-1">
-              <button onClick={() => setActiveTab('portfolio')} className={`pb-3 px-2 font-medium text-sm transition-all relative ${activeTab === 'portfolio' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>
+            <div className="flex gap-4 mb-6 border-b border-slate-200 dark:border-slate-700 pb-1 overflow-x-auto scrollbar-hide">
+              <button onClick={() => setActiveTab('portfolio')} className={`pb-3 px-2 font-medium text-sm transition-all relative shrink-0 whitespace-nowrap ${activeTab === 'portfolio' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>
                 持仓监控 (Portfolio){activeTab === 'portfolio' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
               </button>
-              <button onClick={() => setActiveTab('opportunities')} className={`pb-3 px-2 font-medium text-sm transition-all relative ${activeTab === 'opportunities' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>
+              <button onClick={() => setActiveTab('opportunities')} className={`pb-3 px-2 font-medium text-sm transition-all relative shrink-0 whitespace-nowrap ${activeTab === 'opportunities' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>
                 策略机会 (Opportunities)
                 {activeTab === 'opportunities' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
               </button>
-              <button onClick={() => setActiveTab('monitor')} className={`pb-3 px-2 font-medium text-sm transition-all relative ${activeTab === 'monitor' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>
+              <button onClick={() => setActiveTab('monitor')} className={`pb-3 px-2 font-medium text-sm transition-all relative shrink-0 whitespace-nowrap ${activeTab === 'monitor' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>
                 行情扫描 (Monitor)
                 {activeTab === 'monitor' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
               </button>
-              <button onClick={() => setActiveTab('planner')} className={`pb-3 px-2 font-medium text-sm transition-all relative flex items-center gap-2 ${activeTab === 'planner' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>
+              <button onClick={() => setActiveTab('planner')} className={`pb-3 px-2 font-medium text-sm transition-all relative shrink-0 whitespace-nowrap flex items-center gap-2 ${activeTab === 'planner' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>
                 交易备忘 (Planner){todaysPlanCount > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold animate-pulse">{todaysPlanCount}</span>}
                 {activeTab === 'planner' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
               </button>
