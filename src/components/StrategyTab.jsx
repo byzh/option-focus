@@ -359,7 +359,7 @@ function PMCCCard({ group, deltaMap, onOpenAddModal, onDirectAction, onReopen })
   );
 }
 
-export default function OpportunitiesTab({ positions, deltaMap, deltaLoading, fetchDeltas, onOpenAddModal, onDirectAction, onReopen }) {
+export default function StrategyTab({ positions, deltaMap, deltaLoading, fetchDeltas, onOpenAddModal, onDirectAction, onReopen }) {
   const [ccExpanded, setCcExpanded] = useState(true);
   const [pmccExpanded, setPmccExpanded] = useState(true);
 

@@ -28,7 +28,7 @@ import ExecutionModal from './components/ExecutionModal';
 import ItemCard from './components/ItemCard';
 import AddEditModal from './components/AddEditModal';
 import MonitorTab from './components/MonitorTab';
-import OpportunitiesTab from './components/OpportunitiesTab';
+import StrategyTab from './components/StrategyTab';
 
 const EMPTY_FORM = () => ({
   id: null, ticker: '', assetType: 'OPTION', type: 'CALL', direction: 'BUY', actionCategory: 'OPEN',
@@ -432,7 +432,7 @@ export default function App() {
               <MonitorTab user={user} db={db} functions={functions} />
             </div>
             {activeTab === 'opportunities' && (
-              <OpportunitiesTab
+              <StrategyTab
                 positions={positions}
                 user={user}
                 deltaMap={deltaMap}
