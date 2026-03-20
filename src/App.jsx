@@ -392,10 +392,10 @@ export default function App() {
             {/* 手机 tab 栏 */}
             <div className="flex sm:hidden items-center mb-6 border-b border-slate-200 dark:border-slate-700 pb-1 relative">
               <button onClick={() => setActiveTab('portfolio')} className={`pb-3 px-2 font-medium text-sm transition-all relative shrink-0 whitespace-nowrap ${activeTab === 'portfolio' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'}`}>
-                持仓监控{activeTab === 'portfolio' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
+                持仓监控 (Portfolio){activeTab === 'portfolio' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
               </button>
               <button onClick={() => setActiveTab('opportunities')} className={`pb-3 px-2 font-medium text-sm transition-all relative shrink-0 whitespace-nowrap ${activeTab === 'opportunities' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'}`}>
-                策略机会{activeTab === 'opportunities' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
+                策略机会 (Opportunities){activeTab === 'opportunities' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
               </button>
               <div className="ml-auto relative">
                 <button onClick={() => setMobileMenuOpen(v => !v)} className={`pb-3 px-2 flex items-center gap-1 text-sm transition-all ${['monitor','planner'].includes(activeTab) ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'}`}>
