@@ -161,7 +161,7 @@ function CCCard({ group, onOpenAddModal, onDirectAction, onReopen }) {
                   {expiringSoon && <AlertTriangle size={11} className="text-amber-500 shrink-0" />}
                   <span className="font-mono">${parseFloat(c.strike).toFixed(0)}</span>
                   <span className="text-slate-400">{c.expiration}{dte !== null && ` (${dte}d)`}</span>
-                  <span className="font-mono">× {c.contracts} 张</span>
+                  <span className="font-mono">× {parseInt(c.contracts) || 1} 张</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <button onClick={() => onDirectAction(c, 'ROLL')} title="滚仓" className="p-1 rounded text-amber-500 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 transition-colors">
@@ -188,7 +188,7 @@ function CCCard({ group, onOpenAddModal, onDirectAction, onReopen }) {
                 <div className="flex items-center gap-2">
                   <span className="font-mono">${parseFloat(c.strike).toFixed(0)}</span>
                   <span>{c.expiration}</span>
-                  <span className="font-mono">× {c.contracts} 张</span>
+                  <span className="font-mono">× {parseInt(c.contracts) || 1} 张</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`font-mono font-semibold ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{pnl >= 0 ? '+' : '-'}${Math.abs(pnl).toFixed(2)}</span>
@@ -315,7 +315,7 @@ function PMCCCard({ group, deltaMap, onOpenAddModal, onDirectAction, onReopen })
                   {expiringSoon && <AlertTriangle size={11} className="text-amber-500 shrink-0" />}
                   <span className="font-mono">${parseFloat(c.strike).toFixed(0)}</span>
                   <span className="text-slate-400">{c.expiration}{cDte !== null && ` (${cDte}d)`}</span>
-                  <span className="font-mono">× {c.contracts} 张</span>
+                  <span className="font-mono">× {parseInt(c.contracts) || 1} 张</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <button onClick={() => onDirectAction(c, 'ROLL')} title="滚仓" className="p-1 rounded text-amber-500 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 transition-colors">
@@ -342,7 +342,7 @@ function PMCCCard({ group, deltaMap, onOpenAddModal, onDirectAction, onReopen })
                 <div className="flex items-center gap-2">
                   <span className="font-mono">${parseFloat(c.strike).toFixed(0)}</span>
                   <span>{c.expiration}</span>
-                  <span className="font-mono">× {c.contracts} 张</span>
+                  <span className="font-mono">× {parseInt(c.contracts) || 1} 张</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`font-mono font-semibold ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{pnl >= 0 ? '+' : '-'}${Math.abs(pnl).toFixed(2)}</span>
