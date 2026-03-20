@@ -18,12 +18,15 @@ export function detectCC(positions) {
     const shares = parseInt(stockPos.contracts) || 0;
 
     // All SELL CALL on same ticker (open or closed), excluding PMCC-linked calls
+    // and calls whose contract count individually exceeds the CC max lots
+    const maxLots = Math.floor(shares / 100);
     const allCalls = positions.filter(p =>
       p.ticker === ticker &&
       p.assetType !== 'STOCK' &&
       p.type === 'CALL' &&
       p.direction === 'SELL' &&
-      !p.leapsId
+      !p.leapsId &&
+      (parseInt(p.contracts) || 1) <= maxLots
     );
     const openCalls = allCalls.filter(p => p.status !== 'CLOSED');
     const closedCalls = allCalls.filter(p => p.status === 'CLOSED');

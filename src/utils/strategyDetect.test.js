@@ -135,6 +135,26 @@ describe('detectCC', () => {
     expect(group.openCalls).toHaveLength(1);
     expect(group.coveredLots).toBe(1);
   });
+
+  it('SELL CALL with contracts exceeding CC max lots is excluded (130 shares max 1 lot, call has 2 contracts)', () => {
+    const positions = [
+      { id: 's1', ticker: 'MSFT', assetType: 'STOCK', contracts: 130, entryPrice: 400, status: 'OPEN' },
+      { id: 'c1', ticker: 'MSFT', type: 'CALL', direction: 'SELL', contracts: 2, entryPrice: 3, rollCredit: 0, status: 'OPEN', expiration: daysFromNow(30) },
+    ];
+    const [group] = detectCC(positions);
+    expect(group.openCalls).toHaveLength(0);
+    expect(group.coveredLots).toBe(0);
+  });
+
+  it('SELL CALL within CC max lots is included (200 shares max 2 lots, call has 2 contracts)', () => {
+    const positions = [
+      { id: 's1', ticker: 'MSFT', assetType: 'STOCK', contracts: 200, entryPrice: 400, status: 'OPEN' },
+      { id: 'c1', ticker: 'MSFT', type: 'CALL', direction: 'SELL', contracts: 2, entryPrice: 3, rollCredit: 0, status: 'OPEN', expiration: daysFromNow(30) },
+    ];
+    const [group] = detectCC(positions);
+    expect(group.openCalls).toHaveLength(1);
+    expect(group.coveredLots).toBe(2);
+  });
 });
 
 // ─── detectPMCC ───────────────────────────────────────────────────────────────
