@@ -17,12 +17,13 @@ export function detectCC(positions) {
     const ticker = stockPos.ticker;
     const shares = parseInt(stockPos.contracts) || 0;
 
-    // All SELL CALL on same ticker (open or closed)
+    // All SELL CALL on same ticker (open or closed), excluding PMCC-linked calls
     const allCalls = positions.filter(p =>
       p.ticker === ticker &&
       p.assetType !== 'STOCK' &&
       p.type === 'CALL' &&
-      p.direction === 'SELL'
+      p.direction === 'SELL' &&
+      !p.leapsId
     );
     const openCalls = allCalls.filter(p => p.status !== 'CLOSED');
     const closedCalls = allCalls.filter(p => p.status === 'CLOSED');

@@ -114,6 +114,27 @@ describe('detectCC', () => {
     expect(group.coveredLots).toBe(2);
     expect(group.uncoveredShares).toBe(100); // 300 - 2×100
   });
+
+  it('SELL CALL with leapsId is excluded from CC (belongs to PMCC)', () => {
+    const positions = [
+      { id: 's1', ticker: 'MSFT', assetType: 'STOCK', contracts: 100, entryPrice: 400, status: 'OPEN' },
+      { id: 'c1', ticker: 'MSFT', type: 'CALL', direction: 'SELL', contracts: 1, entryPrice: 3, rollCredit: 0, status: 'OPEN', expiration: daysFromNow(30), leapsId: 'leaps1' },
+    ];
+    const [group] = detectCC(positions);
+    expect(group.openCalls).toHaveLength(0);
+    expect(group.coveredLots).toBe(0);
+    expect(group.uncoveredShares).toBe(100);
+  });
+
+  it('SELL CALL without leapsId is included in CC even if LEAPS exists for same ticker', () => {
+    const positions = [
+      { id: 's1', ticker: 'MSFT', assetType: 'STOCK', contracts: 100, entryPrice: 400, status: 'OPEN' },
+      { id: 'c1', ticker: 'MSFT', type: 'CALL', direction: 'SELL', contracts: 1, entryPrice: 3, rollCredit: 0, status: 'OPEN', expiration: daysFromNow(30) },
+    ];
+    const [group] = detectCC(positions);
+    expect(group.openCalls).toHaveLength(1);
+    expect(group.coveredLots).toBe(1);
+  });
 });
 
 // ─── detectPMCC ───────────────────────────────────────────────────────────────
