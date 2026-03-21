@@ -586,7 +586,7 @@ export default function App() {
                   </button>
                   {isRealizedExpanded && (
                     <div className={`border-t ${colorCls.border} divide-y ${colorCls.divider}`}>
-                      {closedPositions.map(p => {
+                      {[...closedPositions].sort((a, b) => a.ticker.localeCompare(b.ticker)).map(p => {
                         const pnl = calculateFinalPnL(p) || 0;
                         const isPos = pnl >= 0;
                         const isExpired = p.status !== 'CLOSED' && isExpiredByTwoDays(p.expiration);
@@ -594,7 +594,9 @@ export default function App() {
                           <div key={p.id} className="flex items-center justify-between px-4 py-2 text-sm">
                             <div className="flex items-center gap-3">
                               <span className="font-semibold text-slate-700 dark:text-slate-200 w-16">{p.ticker}</span>
-                              <span className="text-slate-500 dark:text-slate-400">${parseFloat(p.strike).toFixed(0)} {p.type} {p.expiration}</span>
+                              {p.assetType === 'STOCK'
+                                ? <span className="text-slate-500 dark:text-slate-400">STOCK</span>
+                                : <span className="text-slate-500 dark:text-slate-400">${parseFloat(p.strike).toFixed(0)} {p.type} {p.expiration}</span>}
                               {isExpired && <span className="text-[10px] px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded">过期</span>}
                             </div>
                             <span className={`font-mono font-semibold ${isPos ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
