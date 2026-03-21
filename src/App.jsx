@@ -466,12 +466,16 @@ export default function App() {
                 </div>
                 <div className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-700 text-xs">
                   <span className="text-slate-400 font-medium">排序:</span>
-                  {[{ key: 'ticker', label: '名称' }, { key: 'days', label: '剩余天数' }].map(({ key, label }) => (
-                    <button key={key} onClick={() => handleSort(key)} className={`flex items-center gap-1 px-2.5 py-1 rounded-full border transition-colors ${sortConfig.key === key ? 'bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-medium' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}>
-                      {label}
-                      {sortConfig.key === key && <ChevronUp size={12} className={sortConfig.direction === 'desc' ? 'rotate-180 transition-transform' : 'transition-transform'} />}
-                    </button>
-                  ))}
+                  {[{ key: 'ticker', label: '名称' }, { key: 'days', label: '剩余天数' }].map(({ key, label }) => {
+                    const disabled = showAggregated && key === 'days';
+                    return (
+                      <button key={key} disabled={disabled} onClick={() => handleSort(key)}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full border transition-colors ${disabled ? 'border-slate-200 dark:border-slate-700 text-slate-300 dark:text-slate-600 cursor-not-allowed' : sortConfig.key === key ? 'bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-medium' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}>
+                        {label}
+                        {!disabled && sortConfig.key === key && <ChevronUp size={12} className={sortConfig.direction === 'desc' ? 'rotate-180 transition-transform' : 'transition-transform'} />}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
