@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RefreshCw, AlertTriangle, TrendingUp, ChevronDown, ChevronUp, CheckCircle2, XCircle, StopCircle, RotateCcw } from 'lucide-react';
+import { RefreshCw, AlertTriangle, TrendingUp, ChevronDown, ChevronUp, CheckCircle2, XCircle, StopCircle, RotateCcw, Search, X } from 'lucide-react';
 import { detectCC, detectPMCC } from '../utils/strategyDetect';
 import { assessLeapsHealth } from '../utils/leapsHealth';
 import { calcNetBasis, calcFinalPnL } from '../calc';
@@ -354,9 +354,17 @@ function PMCCCard({ group, deltaMap, onOpenAddModal, onDirectAction, onReopen })
 export default function StrategyTab({ positions, deltaMap, deltaLoading, fetchDeltas, onOpenAddModal, onDirectAction, onReopen }) {
   const [ccExpanded, setCcExpanded] = useState(true);
   const [pmccExpanded, setPmccExpanded] = useState(true);
+  const [searchTicker, setSearchTicker] = useState('');
 
-  const ccGroups = detectCC(positions);
-  const pmccGroups = detectPMCC(positions);
+  const allCcGroups = detectCC(positions);
+  const allPmccGroups = detectPMCC(positions);
+
+  const ccGroups = allCcGroups
+    .filter(g => !searchTicker || g.ticker.toUpperCase().includes(searchTicker))
+    .sort((a, b) => a.ticker.localeCompare(b.ticker));
+  const pmccGroups = allPmccGroups
+    .filter(g => !searchTicker || g.ticker.toUpperCase().includes(searchTicker))
+    .sort((a, b) => a.ticker.localeCompare(b.ticker));
 
   const isEmpty = ccGroups.length === 0 && pmccGroups.length === 0;
 
@@ -366,7 +374,7 @@ export default function StrategyTab({ positions, deltaMap, deltaLoading, fetchDe
         <h2 className="text-2xl font-bold text-slate-800 dark:text-white">策略机会</h2>
         <button
           onClick={() => {
-            const leapsPositions = pmccGroups.map(g => g.leapsPos);
+            const leapsPositions = allPmccGroups.map(g => g.leapsPos);
             if (leapsPositions.length > 0) fetchDeltas(leapsPositions);
           }}
           className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-blue-500 transition-colors"
@@ -375,6 +383,22 @@ export default function StrategyTab({ positions, deltaMap, deltaLoading, fetchDe
           <RefreshCw size={13} className={deltaLoading ? 'animate-spin' : ''} />
           刷新 Delta
         </button>
+      </div>
+
+      <div className="relative">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <input
+          type="text"
+          placeholder="搜索代码 (Search ticker)..."
+          value={searchTicker}
+          onChange={e => setSearchTicker(e.target.value.toUpperCase())}
+          className="w-full pl-8 pr-8 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 outline-none"
+        />
+        {searchTicker && (
+          <button onClick={() => setSearchTicker('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+            <X size={14} />
+          </button>
+        )}
       </div>
 
       {isEmpty && (
