@@ -73,7 +73,6 @@ export default function App() {
   const [filterType, setFilterType] = useState('ALL');
   const [filterDir, setFilterDir] = useState('ALL');
   const [showAggregated, setShowAggregated] = useState(false);
-  const [aggGroupDir, setAggGroupDir] = useState('asc'); // group-level sort dir in aggregated view, independent of sortConfig
   const [expandedTickers, setExpandedTickers] = useState(new Set());
   const [formData, setFormData] = useState(EMPTY_FORM());
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -467,15 +466,12 @@ export default function App() {
                 </div>
                 <div className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-700 text-xs">
                   <span className="text-slate-400 font-medium">排序:</span>
-                  {[{ key: 'ticker', label: '名称' }, { key: 'days', label: '剩余天数' }].map(({ key, label }) => {
-                    const activeDir = key === 'ticker' && showAggregated ? aggGroupDir : sortConfig.direction;
-                    return (
-                      <button key={key} onClick={() => { handleSort(key); if (key === 'ticker' && showAggregated) setAggGroupDir(d => d === 'asc' ? 'desc' : 'asc'); }} className={`flex items-center gap-1 px-2.5 py-1 rounded-full border transition-colors ${sortConfig.key === key || (key === 'ticker' && showAggregated) ? 'bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-medium' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}>
-                        {label}
-                        {(sortConfig.key === key || (key === 'ticker' && showAggregated)) && <ChevronUp size={12} className={activeDir === 'desc' ? 'rotate-180 transition-transform' : 'transition-transform'} />}
-                      </button>
-                    );
-                  })}
+                  {[{ key: 'ticker', label: '名称' }, { key: 'days', label: '剩余天数' }].map(({ key, label }) => (
+                    <button key={key} onClick={() => handleSort(key)} className={`flex items-center gap-1 px-2.5 py-1 rounded-full border transition-colors ${sortConfig.key === key ? 'bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-medium' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}>
+                      {label}
+                      {sortConfig.key === key && <ChevronUp size={12} className={sortConfig.direction === 'desc' ? 'rotate-180 transition-transform' : 'transition-transform'} />}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
@@ -636,7 +632,7 @@ export default function App() {
                 if (baseList.length === 0) return <div className="text-center py-12 text-slate-400 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700"><p>{searchTicker || filterStatus !== 'ALL' || filterType !== 'ALL' || filterDir !== 'ALL' ? '没有符合筛选条件的记录' : '暂无记录'}</p></div>;
 
                 if (showAggregated && activeTab === 'portfolio') {
-                  const aggDir = aggGroupDir === 'desc' ? -1 : 1;
+                  const aggDir = sortConfig.key === 'ticker' && sortConfig.direction === 'desc' ? -1 : 1;
                   const aggregated = aggregateByTicker(baseList)
                     .sort((a, b) => a.ticker.localeCompare(b.ticker) * aggDir);
                   return aggregated.map(agg => (
@@ -666,14 +662,9 @@ export default function App() {
                       {expandedTickers.has(agg.ticker) && (
                         <div className="mt-2 space-y-2 pl-2 border-l-2 border-slate-200 dark:border-slate-700">
                           {agg.items.sort((a, b) => {
-                              const aClosed = a.status === 'CLOSED' || isExpiredByTwoDays(a.expiration);
-                              const bClosed = b.status === 'CLOSED' || isExpiredByTwoDays(b.expiration);
+                              const aClosed = a.status === 'CLOSED';
+                              const bClosed = b.status === 'CLOSED';
                               if (aClosed !== bClosed) return aClosed ? 1 : -1;
-                              if (sortConfig.key === 'days') {
-                                const aDTE = calculateDTE(a.expiration) ?? Infinity;
-                                const bDTE = calculateDTE(b.expiration) ?? Infinity;
-                                return aDTE - bDTE;
-                              }
                               return (a.expiration || '').localeCompare(b.expiration || '');
                             }).map(item => {
                             const concentration = item.type === 'PUT' && item.direction === 'SELL' ? getTickerConcentration(item.ticker) : 0;
