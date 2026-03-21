@@ -209,10 +209,10 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
             {/* Action buttons */}
             <div className="flex gap-1">
               {!isClosed && !isExpired && (
-                <button onClick={() => onDirectAction(item, 'ROLL')} className="p-1.5 text-amber-500 bg-amber-50 dark:bg-amber-900/20 rounded hover:bg-amber-100" title="滚仓 (Roll)"><RefreshCw size={16} /></button>
+                <button onClick={() => onDirectAction(item, 'ROLL')} className="p-1.5 text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 rounded hover:bg-yellow-100" title="滚仓 (Roll)"><RefreshCw size={16} /></button>
               )}
               {!isClosed && (
-                <button onClick={() => onDirectAction(item, 'CLOSE')} className="p-1.5 text-slate-500 bg-slate-100 dark:bg-slate-700 rounded hover:bg-slate-200" title="平仓 (Close)"><StopCircle size={16} /></button>
+                <button onClick={() => onDirectAction(item, 'CLOSE')} className="p-1.5 text-orange-500 bg-orange-50 dark:bg-orange-900/20 rounded hover:bg-orange-100" title="平仓 (Close)"><StopCircle size={16} /></button>
               )}
               {isClosed && <button onClick={() => onReopen(item)} className="p-1.5 text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 rounded hover:bg-emerald-100" title="重新开仓"><RotateCcw size={16} /></button>}
               {(history.length > 1 || isClosed) && <button onClick={() => setIsHistoryExpanded(!isHistoryExpanded)} className="p-1.5 text-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 rounded hover:bg-indigo-100">{isHistoryExpanded ? <ChevronUp size={16} /> : <History size={16} />}</button>}

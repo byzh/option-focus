@@ -156,10 +156,10 @@ function CCCard({ group, onOpenAddModal, onDirectAction, onReopen }) {
                   <span className="font-mono">× {parseInt(c.contracts) || 1}</span><span> 张</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => onDirectAction(c, 'ROLL')} title="滚仓" className="p-1 rounded text-amber-500 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 transition-colors">
+                  <button onClick={() => onDirectAction(c, 'ROLL')} title="滚仓" className="p-1 rounded text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100 transition-colors">
                     <RefreshCw size={11} />
                   </button>
-                  <button onClick={() => onDirectAction(c, 'CLOSE')} title="平仓" className="p-1 rounded text-slate-500 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 transition-colors">
+                  <button onClick={() => onDirectAction(c, 'CLOSE')} title="平仓" className="p-1 rounded text-orange-500 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 transition-colors">
                     <StopCircle size={11} />
                   </button>
                 </div>
@@ -310,10 +310,10 @@ function PMCCCard({ group, deltaMap, onOpenAddModal, onDirectAction, onReopen })
                   <span className="font-mono">× {parseInt(c.contracts) || 1}</span><span> 张</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => onDirectAction(c, 'ROLL')} title="滚仓" className="p-1 rounded text-amber-500 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 transition-colors">
+                  <button onClick={() => onDirectAction(c, 'ROLL')} title="滚仓" className="p-1 rounded text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100 transition-colors">
                     <RefreshCw size={11} />
                   </button>
-                  <button onClick={() => onDirectAction(c, 'CLOSE')} title="平仓" className="p-1 rounded text-slate-500 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 transition-colors">
+                  <button onClick={() => onDirectAction(c, 'CLOSE')} title="平仓" className="p-1 rounded text-orange-500 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 transition-colors">
                     <StopCircle size={11} />
                   </button>
                 </div>
