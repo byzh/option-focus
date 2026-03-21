@@ -1,5 +1,5 @@
 /**
- * Pure calculation functions for option position P&L.
+ * Pure calculation functions for option and stock position P&L.
  *
  * Units:
  *   entryPrice  — option price per share (e.g. 1.60 means $1.60/share → $160/contract)
@@ -9,7 +9,27 @@
  */
 
 /**
- * Net cost basis of a position in dollars.
+ * Cost basis of a STOCK position in dollars.
+ *   totalCost = entryPrice × shares
+ * No options multiplier — shares already represent the full quantity.
+ */
+export function calcStockNetBasis(entryPrice, shares) {
+  return (parseFloat(entryPrice) || 0) * (parseInt(shares) || 1);
+}
+
+/**
+ * Realized P&L for a STOCK position in dollars.
+ *   pnl = (closePrice - entryPrice) × shares
+ */
+export function calcStockPnL(entryPrice, closePrice, shares) {
+  const ep = parseFloat(entryPrice) || 0;
+  const cp = parseFloat(closePrice) || 0;
+  const n = parseInt(shares) || 1;
+  return (cp - ep) * n;
+}
+
+/**
+ * Net cost basis of an OPTION position in dollars.
  *   netBasis = (entryPrice + rollCredit) × 100 × contracts
  */
 export function calcNetBasis(entryPrice, rollCredit, contracts) {

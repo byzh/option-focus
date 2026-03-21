@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcNetBasis, calcFinalPnL, calcBreakEven, calcCCBreakEven, calcPMCCBreakEven, calcPMCCNetCost, calcRealizedCredits } from './calc';
+import { calcNetBasis, calcFinalPnL, calcBreakEven, calcCCBreakEven, calcPMCCBreakEven, calcPMCCNetCost, calcRealizedCredits, calcStockNetBasis, calcStockPnL } from './calc';
 
 // ─── calcNetBasis ────────────────────────────────────────────────────────────
 // Formula: (entryPrice + rollCredit) × 100 × contracts
@@ -299,5 +299,68 @@ describe('calcPMCCBreakEven', () => {
 
   it('null closedCalls defaults to empty', () => {
     expect(calcPMCCBreakEven(leapsPos, null)).toBeCloseTo(240);
+  });
+});
+
+// ─── calcStockNetBasis ────────────────────────────────────────────────────────
+// Formula: entryPrice × shares  (no ×100 options multiplier)
+
+describe('calcStockNetBasis', () => {
+  it('100 shares at $200 = $20,000', () => {
+    expect(calcStockNetBasis(200, 100)).toBeCloseTo(20000);
+  });
+
+  it('1 share at $585.54 = $585.54', () => {
+    expect(calcStockNetBasis(585.54, 1)).toBeCloseTo(585.54);
+  });
+
+  it('defaults shares to 1 when undefined', () => {
+    expect(calcStockNetBasis(100, undefined)).toBeCloseTo(100);
+  });
+
+  it('defaults entryPrice to 0 when falsy', () => {
+    expect(calcStockNetBasis(null, 100)).toBe(0);
+  });
+
+  it('is NOT the same as calcNetBasis — no ×100 multiplier', () => {
+    // calcNetBasis(200, 0, 100) = 200 × 100 × 100 = 2,000,000 (wrong for stocks)
+    // calcStockNetBasis(200, 100)  = 200 × 100     =    20,000 (correct)
+    expect(calcStockNetBasis(200, 100)).not.toBeCloseTo(calcNetBasis(200, 0, 100));
+  });
+});
+
+// ─── calcStockPnL ─────────────────────────────────────────────────────────────
+// Formula: (closePrice - entryPrice) × shares
+
+describe('calcStockPnL', () => {
+  it('profit: bought at $200, sold at $220, 100 shares → +$2,000', () => {
+    expect(calcStockPnL(200, 220, 100)).toBeCloseTo(2000);
+  });
+
+  it('loss: bought at $200, sold at $180, 100 shares → -$2,000', () => {
+    expect(calcStockPnL(200, 180, 100)).toBeCloseTo(-2000);
+  });
+
+  it('flat: closePrice equals entryPrice → $0', () => {
+    expect(calcStockPnL(200, 200, 100)).toBe(0);
+  });
+
+  it('defaults shares to 1 when undefined', () => {
+    expect(calcStockPnL(100, 150, undefined)).toBeCloseTo(50);
+  });
+
+  it('expired worthless (closePrice=0): loss = -entryPrice × shares', () => {
+    // A stock closing at $0 (e.g. bankruptcy) is a total loss
+    expect(calcStockPnL(585, 0, 100)).toBeCloseTo(-58500);
+  });
+
+  it('is NOT the same as calcFinalPnL — no ×100 multiplier applied', () => {
+    // calcFinalPnL('BUY', calcNetBasis(200,0,100), 220, 100) uses ×100 internally
+    // calcStockPnL(200, 220, 100) = (220-200)*100 = 2,000 (correct)
+    const stockPnL = calcStockPnL(200, 220, 100);
+    expect(stockPnL).toBeCloseTo(2000);
+    // Options formula would give (220×100×100) - (200×100×100) = 200,000 (wrong for stocks)
+    const wrongPnL = calcFinalPnL('BUY', calcNetBasis(200, 0, 100), 220, 100);
+    expect(wrongPnL).not.toBeCloseTo(stockPnL);
   });
 });

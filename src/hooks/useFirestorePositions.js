@@ -33,6 +33,7 @@ export function useFirestorePositions({ user, db }) {
     if (!user || !db || positions.length === 0) return;
 
     positions.forEach(p => {
+      if (p.assetType === 'STOCK') return; // stocks never expire
       if (!isExpired(p.expiration)) return;
 
       const today = getLocalTodayString();

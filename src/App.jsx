@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { calcNetBasis, calcFinalPnL } from './calc';
+import { calcNetBasis, calcFinalPnL, calcStockNetBasis, calcStockPnL } from './calc';
 import { detectCC, detectPMCC } from './utils/strategyDetect';
 import { useLeapsDelta } from './hooks/useLeapsDelta';
 import {
@@ -113,7 +113,7 @@ export default function App() {
       const openCount = items.filter(p => p.status !== 'CLOSED').length;
       // Count all positions (active, closed, and expired) for totalContracts
       const totalContracts = items.reduce((sum, p) => sum + (parseInt(p.contracts) || 1), 0);
-      const totalCost = items.reduce((sum, p) => sum + calcNetBasis(p.entryPrice, p.rollCredit, p.contracts), 0);
+      const totalCost = items.reduce((sum, p) => sum + calculateNetBasis(p), 0);
       const avgCost = totalCost > 0 ? totalCost / totalContracts : 0;
       const activeItems = items.filter(p => p.status !== 'CLOSED' && !isExpiredByTwoDays(p.expiration));
       const earliestDTE = activeItems.length > 0 ? Math.min(...activeItems.map(p => {
@@ -185,8 +185,16 @@ export default function App() {
   const getStrategyTag = (item) => strategyTagMap[item.id] ?? null;
 
   // Calculation helpers (thin wrappers)
-  const calculateNetBasis = (pos) => calcNetBasis(pos.entryPrice, pos.rollCredit, pos.contracts);
+  const calculateNetBasis = (pos) => {
+    if (pos.assetType === 'STOCK') return calcStockNetBasis(pos.entryPrice, pos.contracts);
+    return calcNetBasis(pos.entryPrice, pos.rollCredit, pos.contracts);
+  };
   const calculateFinalPnL = (pos) => {
+    if (pos.assetType === 'STOCK') {
+      // Stocks only show realized P&L when manually closed; they never auto-expire
+      if (pos.status !== 'CLOSED') return null;
+      return calcStockPnL(pos.entryPrice, pos.closePrice, pos.contracts);
+    }
     let closePrice = 0;
     if (pos.status === 'CLOSED') closePrice = parseFloat(pos.closePrice) || 0;
     else if (isExpiredByTwoDays(pos.expiration)) closePrice = 0;
@@ -200,6 +208,14 @@ export default function App() {
     if (!user) { setMessageModal({ isOpen: true, title: '未连接', content: "⚠️ 尚未连接到云端，无法保存。", type: 'error' }); return; }
     const colName = activeTab === 'portfolio' ? 'positions' : 'plans';
     const newItem = { ...formData, entryPrice: parseFloat(formData.entryPrice) || 0, rollCredit: parseFloat(formData.rollCredit) || 0, contracts: parseInt(formData.contracts) || 1, strike: parseFloat(formData.strike) || 0, newStrike: parseFloat(formData.newStrike) || 0, status: formData.id ? undefined : 'OPEN', history: formData.id ? undefined : [], dateOpened: formData.id ? undefined : getLocalTodayString() };
+    // Stocks don't have option-specific fields — clear them to avoid phantom expiration bugs
+    if (newItem.assetType === 'STOCK') {
+      delete newItem.type;
+      delete newItem.strike;
+      delete newItem.expiration;
+      delete newItem.rollCredit;
+      delete newItem.leapsId;
+    }
     Object.keys(newItem).forEach(key => newItem[key] === undefined && delete newItem[key]);
     delete newItem.id;
     setIsSaving(true);
@@ -545,7 +561,9 @@ export default function App() {
 
             {/* Realized P&L Summary */}
             {activeTab === 'portfolio' && (() => {
-              const closedPositions = positions.filter(p => p.status === 'CLOSED' || isExpiredByTwoDays(p.expiration));
+              const closedPositions = positions.filter(p =>
+                p.assetType === 'STOCK' ? p.status === 'CLOSED' : (p.status === 'CLOSED' || isExpiredByTwoDays(p.expiration))
+              );
               if (closedPositions.length === 0) return null;
               const totalPnL = closedPositions.reduce((sum, p) => sum + (calculateFinalPnL(p) || 0), 0);
               const isPositive = totalPnL >= 0;
