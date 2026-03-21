@@ -55,7 +55,7 @@ function AddEditModal({ formData, setFormData, onSubmit, onClose, activeTab, pos
               <label className="text-xs font-bold text-slate-500 dark:text-slate-400">选择持仓 (Select Position) *</label>
               <select className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded cursor-pointer bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" value={formData.selectedPositionId} onChange={e => onSelectPos(e.target.value)} required>
                 <option value="" className="bg-white dark:bg-slate-700 text-slate-900 dark:text-white">-- 请选择要操作的期权 --</option>
-                {positions.filter(p => p.status !== 'CLOSED').map(p => <option key={p.id} value={p.id} className="bg-white dark:bg-slate-700 text-slate-900 dark:text-white">{p.ticker} {p.expiration} ${p.strike}</option>)}
+                {positions.filter(p => p.status !== 'CLOSED' && p.assetType !== 'STOCK').map(p => <option key={p.id} value={p.id} className="bg-white dark:bg-slate-700 text-slate-900 dark:text-white">{p.ticker} {p.expiration} ${p.strike}</option>)}
               </select>
             </div>
           )}

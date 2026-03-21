@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, updateDoc, doc, onSnapshot, writeBatch, deleteField } from 'firebase/firestore';
+import { collection, updateDoc, doc, onSnapshot } from 'firebase/firestore';
 import { isExpired, getLocalTodayString } from '../utils/dateUtils';
 
 const APP_ID = 'option-focus-v2';
@@ -58,42 +58,6 @@ export function useFirestorePositions({ user, db }) {
         }).catch(e => console.error('Failed to add auto-expire record:', e));
       }
     });
-  }, [positions, user, db]);
-
-  // One-time migration: reopen STOCK positions wrongly auto-expired by old buggy code.
-  // Targets only STOCK positions whose history contains an AUTO_EXPIRE entry.
-  // Safe to run repeatedly — exits immediately when no dirty data exists.
-  useEffect(() => {
-    if (!user || !db || positions.length === 0) return;
-
-    const dirty = positions.filter(
-      p => p.assetType === 'STOCK' && (p.history || []).some(h => h.action === 'AUTO_EXPIRE')
-    );
-    if (dirty.length === 0) return;
-
-    console.log(`[repair] Found ${dirty.length} wrongly auto-expired STOCK position(s). Repairing...`);
-    const batch = writeBatch(db);
-    dirty.forEach(p => {
-      const ref = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', p.id);
-      batch.update(ref, {
-        status: 'OPEN',
-        closePrice: deleteField(),
-        dateClosed: deleteField(),
-        // Remove phantom option fields written by old handleSubmit
-        type: deleteField(),
-        strike: deleteField(),
-        expiration: deleteField(),
-        rollCredit: deleteField(),
-        leapsId: deleteField(),
-        // Strip AUTO_EXPIRE entries from history, preserve everything else
-        history: (p.history || []).filter(h => h.action !== 'AUTO_EXPIRE'),
-      });
-      console.log(`[repair] Reopening STOCK ${p.ticker} (id: ${p.id})`);
-    });
-
-    batch.commit()
-      .then(() => console.log('[repair] STOCK repair migration complete.'))
-      .catch(e => console.error('[repair] Migration failed:', e));
   }, [positions, user, db]);
 
   return { positions, plans };

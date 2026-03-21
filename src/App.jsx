@@ -251,7 +251,8 @@ export default function App() {
 
   const handlePositionSelect = (posId) => {
     const pos = positions.find(p => p.id === posId);
-    if (pos) setFormData(prev => ({ ...prev, selectedPositionId: posId, ticker: pos.ticker, type: pos.type, direction: pos.direction, strike: pos.strike, expiration: pos.expiration, newStrike: pos.strike, newExpirationPeriod: '' }));
+    if (!pos || pos.assetType === 'STOCK') return; // planner only operates on options
+    setFormData(prev => ({ ...prev, selectedPositionId: posId, ticker: pos.ticker, type: pos.type, direction: pos.direction, strike: pos.strike, expiration: pos.expiration, newStrike: pos.strike, newExpirationPeriod: '' }));
   };
 
   const handleDirectAction = (position, actionCategory) => {
@@ -616,12 +617,17 @@ export default function App() {
                   ? positions.filter(p => {
                       if (searchTicker && !p.ticker?.toUpperCase().includes(searchTicker)) return false;
                       if (filterStatus !== 'ALL') {
-                        const isClosed = p.status === 'CLOSED' || isExpiredByTwoDays(p.expiration);
+                        const isClosed = p.assetType === 'STOCK'
+                          ? p.status === 'CLOSED'
+                          : p.status === 'CLOSED' || isExpiredByTwoDays(p.expiration);
                         if (filterStatus === 'OPEN' && isClosed) return false;
                         if (filterStatus === 'CLOSED' && !isClosed) return false;
                       }
-                      if (filterType !== 'ALL' && p.type !== filterType) return false;
-                      if (filterDir !== 'ALL' && p.direction !== filterDir) return false;
+                      // STOCK positions have no type/direction — skip these filters
+                      if (p.assetType !== 'STOCK') {
+                        if (filterType !== 'ALL' && p.type !== filterType) return false;
+                        if (filterDir !== 'ALL' && p.direction !== filterDir) return false;
+                      }
                       return true;
                     })
                   : plans;
