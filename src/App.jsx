@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { calcNetBasis, calcFinalPnL, calcStockNetBasis, calcStockPnL } from './calc';
+import { calcNetBasis, calcFinalPnL, calcStockNetBasis, calcStockPnL, calcStockBuy, calcStockSell, calcStockTotalRealizedPnL } from './calc';
 import { detectCC, detectPMCC } from './utils/strategyDetect';
 import { useLeapsDelta } from './hooks/useLeapsDelta';
 import {
@@ -27,6 +27,7 @@ import ConfirmModal from './components/ConfirmModal';
 import ExecutionModal from './components/ExecutionModal';
 import ItemCard from './components/ItemCard';
 import AddEditModal from './components/AddEditModal';
+import StockTradeModal from './components/StockTradeModal';
 import MonitorTab from './components/MonitorTab';
 import StrategyTab from './components/StrategyTab';
 import { useFirestorePositions } from './hooks/useFirestorePositions';
@@ -77,6 +78,7 @@ export default function App() {
   const [formData, setFormData] = useState(EMPTY_FORM());
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState(null);
+  const [stockTradePosition, setStockTradePosition] = useState(null);
 
   const { deltaMap, loading: deltaLoading, fetchDeltas } = useLeapsDelta({ user });
 
@@ -160,7 +162,6 @@ export default function App() {
       const planPromises = localPlans.map(p => { const c = { ...p }; delete c.id; return addDoc(collection(db, 'artifacts', APP_ID, 'users', user.uid, 'plans'), c); });
       await Promise.all([...posPromises, ...planPromises]);
       setConfirmModal(prev => ({ ...prev, isOpen: false }));
-      setMessageModal({ isOpen: true, title: '迁移成功', content: `✅ 成功导入了 ${localPositions.length + localPlans.length} 条数据！`, type: 'info' });
     } catch (e) {
       setMessageModal({ isOpen: true, title: '迁移失败', content: `❌ 错误信息: ${e.message}`, type: 'error' });
     } finally { setIsMigrating(false); }
@@ -191,8 +192,11 @@ export default function App() {
   };
   const calculateFinalPnL = (pos) => {
     if (pos.assetType === 'STOCK') {
-      // Stocks only show realized P&L when manually closed; they never auto-expire
       if (pos.status !== 'CLOSED') return null;
+      // Prefer history-based P&L (supports partial sells / 做T)
+      const historyPnL = calcStockTotalRealizedPnL(pos.history);
+      if (historyPnL !== 0) return historyPnL;
+      // Fallback for simple close with no trade history
       return calcStockPnL(pos.entryPrice, pos.closePrice, pos.contracts);
     }
     let closePrice = 0;
@@ -202,12 +206,32 @@ export default function App() {
     return calcFinalPnL(pos.direction, calculateNetBasis(pos), closePrice, pos.contracts);
   };
 
+  // Stock BUY / SELL trade
+  const handleStockTrade = async (position, action, shares, price, date, notes) => {
+    if (!user || !db) return;
+    const ref = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', position.id);
+    let update = {};
+    if (action === 'BUY') {
+      const { newAvgCost, newShares } = calcStockBuy(position.entryPrice, position.contracts, price, shares);
+      const entry = { date, action: 'BUY', shares, price, avgCostAfter: newAvgCost, sharesAfter: newShares, realizedPnL: 0, notes };
+      update = { entryPrice: newAvgCost, contracts: newShares, history: [entry, ...(position.history || [])] };
+    } else {
+      const { realizedPnL, newShares, isClosed } = calcStockSell(position.entryPrice, position.contracts, price, shares);
+      const entry = { date, action: 'SELL', shares, price, avgCostAfter: position.entryPrice, sharesAfter: newShares, realizedPnL, notes };
+      update = { contracts: newShares, history: [entry, ...(position.history || [])] };
+      if (isClosed) { update.status = 'CLOSED'; update.closePrice = price; update.dateClosed = date; }
+    }
+    await updateDoc(ref, update).catch(e => console.error('Stock trade failed:', e));
+    setStockTradePosition(null);
+  };
+
   // CRUD
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!user) { setMessageModal({ isOpen: true, title: '未连接', content: "⚠️ 尚未连接到云端，无法保存。", type: 'error' }); return; }
     const colName = activeTab === 'portfolio' ? 'positions' : 'plans';
-    const newItem = { ...formData, entryPrice: parseFloat(formData.entryPrice) || 0, rollCredit: parseFloat(formData.rollCredit) || 0, contracts: parseInt(formData.contracts) || 1, strike: parseFloat(formData.strike) || 0, newStrike: parseFloat(formData.newStrike) || 0, status: formData.id ? undefined : 'OPEN', history: formData.id ? undefined : [], dateOpened: formData.id ? undefined : getLocalTodayString() };
+    const today = getLocalTodayString();
+    const newItem = { ...formData, entryPrice: parseFloat(formData.entryPrice) || 0, rollCredit: parseFloat(formData.rollCredit) || 0, contracts: parseInt(formData.contracts) || 1, strike: parseFloat(formData.strike) || 0, newStrike: parseFloat(formData.newStrike) || 0, status: formData.id ? undefined : 'OPEN', history: formData.id ? undefined : [], dateOpened: formData.id ? undefined : today };
     // Stocks don't have option-specific fields — clear them to avoid phantom expiration bugs
     if (newItem.assetType === 'STOCK') {
       delete newItem.type;
@@ -215,6 +239,15 @@ export default function App() {
       delete newItem.expiration;
       delete newItem.rollCredit;
       delete newItem.leapsId;
+      // For new positions, record initial buy as INIT history entry
+      if (!formData.id) {
+        newItem.history = [{
+          date: today, action: 'INIT',
+          shares: newItem.contracts, price: newItem.entryPrice,
+          avgCostAfter: newItem.entryPrice, sharesAfter: newItem.contracts,
+          realizedPnL: 0, notes: formData.notes || '',
+        }];
+      }
     }
     Object.keys(newItem).forEach(key => newItem[key] === undefined && delete newItem[key]);
     delete newItem.id;
@@ -226,9 +259,6 @@ export default function App() {
         : addDoc(collection(db, 'artifacts', APP_ID, 'users', user.uid, colName), newItem);
       await Promise.race([op, timeout]);
       closeModal();
-      const action = formData.id ? '更新' : '创建';
-      const category = activeTab === 'portfolio' ? '持仓' : '备忘';
-      setMessageModal({ isOpen: true, title: '保存成功', content: `✅ ${action}${category}成功。`, type: 'info' });
     } catch (e) {
       setMessageModal({ isOpen: true, title: '保存失败 (Save Failed)', content: `❌ 操作超时或失败。\n错误信息: ${e.message}`, type: 'error' });
     } finally { setIsSaving(false); }
@@ -279,14 +309,11 @@ export default function App() {
     try {
       if (plan.actionCategory === 'OPEN') {
         await addDoc(collection(db, 'artifacts', APP_ID, 'users', user.uid, 'positions'), { status: 'OPEN', ticker: plan.ticker, type: plan.type, direction: plan.direction, strike: parseFloat(execData.strike), expiration: execData.expiration, entryPrice: parseFloat(execData.price), rollCredit: 0, history: [], dateOpened: today });
-        setMessageModal({ isOpen: true, title: '开仓成功', content: `已记录 ${plan.ticker} ${plan.type} ${plan.direction === 'BUY' ? '买入' : '卖出'}。`, type: 'info' });
       } else if (plan.actionCategory === 'CLOSE') {
         const pos = positions.find(p => p.id === plan.selectedPositionId);
         if (pos) {
           const closePrice = parseFloat(execData.price);
           await updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', pos.id), { status: 'CLOSED', closePrice, dateClosed: today, history: [{ date: today, action: 'CLOSE', closePrice, notes: 'Closed' }, ...(pos.history || [])] });
-          const pnl = calcFinalPnL(pos.direction, calculateNetBasis(pos), closePrice, pos.contracts);
-          setMessageModal({ isOpen: true, title: '平仓成功', content: `已平仓 ${pos.ticker}。\n最终盈亏: $${pnl.toFixed(2)}`, type: 'info' });
         }
       } else if (plan.actionCategory === 'ROLL') {
         const pos = positions.find(p => p.id === plan.selectedPositionId);
@@ -294,7 +321,6 @@ export default function App() {
           const rollInputPrice = parseFloat(execData.price) || 0;
           const basisAdj = pos.direction === 'SELL' ? -1 * rollInputPrice : rollInputPrice;
           await updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', pos.id), { strike: parseFloat(execData.strike), expiration: execData.expiration, rollCredit: (parseFloat(pos.rollCredit) || 0) + basisAdj, history: [{ date: today, action: 'ROLL', oldStrike: pos.strike, oldExpiration: pos.expiration, rollPrice: rollInputPrice, snapshotEntryPrice: pos.entryPrice, newStrike: parseFloat(execData.strike), newExpiration: execData.expiration }, ...(pos.history || [])] });
-          setMessageModal({ isOpen: true, title: '展期成功', content: `已展期 ${pos.ticker} 至 ${execData.expiration} $${parseFloat(execData.strike)}。`, type: 'info' });
         }
       }
       if (!plan.isDirect && plan.id) await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'plans', plan.id));
@@ -673,7 +699,7 @@ export default function App() {
                             }).map(item => {
                             const concentration = item.type === 'PUT' && item.direction === 'SELL' ? getTickerConcentration(item.ticker) : 0;
                             return (
-                              <ItemCard key={item.id} item={item} type={activeTab} onEdit={openEdit} onDelete={deleteItem} onExecute={() => setExecutionPlan(item)} onDirectAction={handleDirectAction} onReopen={handleReopen} concentration={concentration} strategyTag={getStrategyTag(item)} delta={deltaMap[item.id] ?? null} />
+                              <ItemCard key={item.id} item={item} type={activeTab} onEdit={openEdit} onDelete={deleteItem} onExecute={() => setExecutionPlan(item)} onDirectAction={handleDirectAction} onReopen={handleReopen} onStockTrade={setStockTradePosition} concentration={concentration} strategyTag={getStrategyTag(item)} delta={deltaMap[item.id] ?? null} />
                             );
                           })}
                         </div>
@@ -702,6 +728,7 @@ export default function App() {
                     onExecute={() => setExecutionPlan(item)}
                     onDirectAction={handleDirectAction}
                     onReopen={handleReopen}
+                    onStockTrade={setStockTradePosition}
                     concentration={concentration}
                     strategyTag={getStrategyTag(item)}
                     delta={deltaMap[item.id] ?? null}
@@ -718,6 +745,7 @@ export default function App() {
 
       {showAddModal && <AddEditModal formData={formData} setFormData={setFormData} onSubmit={handleSubmit} onClose={closeModal} activeTab={activeTab} positions={positions} onSelectPos={handlePositionSelect} isSaving={isSaving} />}
       {executionPlan && <ExecutionModal plan={executionPlan} onClose={() => setExecutionPlan(null)} onConfirm={handleExecutionConfirm} isLoading={isExecuting} />}
+      {stockTradePosition && <StockTradeModal position={stockTradePosition} onClose={() => setStockTradePosition(null)} onConfirm={(action, shares, price, date, notes) => handleStockTrade(stockTradePosition, action, shares, price, date, notes)} />}
       <MessageModal isOpen={messageModal.isOpen} title={messageModal.title} content={messageModal.content} type={messageModal.type} onClose={() => setMessageModal({ ...messageModal, isOpen: false })} />
       <ConfirmModal isOpen={confirmModal.isOpen} title={confirmModal.title} content={confirmModal.content} loading={isMigrating} onConfirm={confirmModal.onConfirm} onCancel={() => setConfirmModal({ ...confirmModal, isOpen: false })} />
     </div>

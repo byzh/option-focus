@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcNetBasis, calcFinalPnL, calcBreakEven, calcCCBreakEven, calcPMCCBreakEven, calcPMCCNetCost, calcRealizedCredits, calcStockNetBasis, calcStockPnL } from './calc';
+import { calcNetBasis, calcFinalPnL, calcBreakEven, calcCCBreakEven, calcPMCCBreakEven, calcPMCCNetCost, calcRealizedCredits, calcStockNetBasis, calcStockPnL, calcStockBuy, calcStockSell, calcStockTotalRealizedPnL } from './calc';
 
 // ─── calcNetBasis ────────────────────────────────────────────────────────────
 // Formula: (entryPrice + rollCredit) × 100 × contracts
@@ -362,5 +362,165 @@ describe('calcStockPnL', () => {
     // Options formula would give (220×100×100) - (200×100×100) = 200,000 (wrong for stocks)
     const wrongPnL = calcFinalPnL('BUY', calcNetBasis(200, 0, 100), 220, 100);
     expect(wrongPnL).not.toBeCloseTo(stockPnL);
+  });
+});
+
+// ─── calcStockBuy ─────────────────────────────────────────────────────────────
+// 买入更多股票后，用加权平均重新计算成本价。
+// Formula: newAvgCost = (avgCost×shares + buyPrice×buyShares) / (shares + buyShares)
+//          newShares  = shares + buyShares
+
+describe('calcStockBuy', () => {
+  it('basic weighted average: 100@$200 then 50@$230 → avg $210, 150 shares', () => {
+    // (100×200 + 50×230) / 150 = 31500/150 = 210
+    const result = calcStockBuy(200, 100, 230, 50);
+    expect(result.newAvgCost).toBeCloseTo(210);
+    expect(result.newShares).toBe(150);
+  });
+
+  it('buy at same price: avg stays unchanged', () => {
+    const result = calcStockBuy(200, 100, 200, 50);
+    expect(result.newAvgCost).toBeCloseTo(200);
+    expect(result.newShares).toBe(150);
+  });
+
+  it('buy below avg: avg cost decreases', () => {
+    // 做T 回补：190@$308.18 then 10@$300
+    // newAvg = (190×308.18 + 10×300) / 200 = (58554.2 + 3000) / 200 = 307.771
+    const result = calcStockBuy(308.18, 190, 300, 10);
+    expect(result.newAvgCost).toBeCloseTo(307.771, 2);
+    expect(result.newShares).toBe(200);
+  });
+
+  it('buy above avg: avg cost increases', () => {
+    // 100@$200 then 100@$250 → avg $225
+    const result = calcStockBuy(200, 100, 250, 100);
+    expect(result.newAvgCost).toBeCloseTo(225);
+    expect(result.newShares).toBe(200);
+  });
+
+  it('string inputs are coerced', () => {
+    const result = calcStockBuy('200', '100', '230', '50');
+    expect(result.newAvgCost).toBeCloseTo(210);
+    expect(result.newShares).toBe(150);
+  });
+
+  it('first buy (shares=0): newAvgCost equals buyPrice', () => {
+    const result = calcStockBuy(0, 0, 308.18, 190);
+    expect(result.newAvgCost).toBeCloseTo(308.18);
+    expect(result.newShares).toBe(190);
+  });
+});
+
+// ─── calcStockSell ────────────────────────────────────────────────────────────
+// 卖出股票，计算本次已实现盈亏，平均成本不变。
+// Formula: realizedPnL = (sellPrice - avgCost) × soldShares
+//          newShares   = shares - soldShares
+//          isClosed    = newShares === 0
+
+describe('calcStockSell', () => {
+  it('partial sell profit: avg=$200, 100 shares, sell 50@$220 → pnl +$1,000, 50 remaining', () => {
+    const result = calcStockSell(200, 100, 220, 50);
+    expect(result.realizedPnL).toBeCloseTo(1000);
+    expect(result.newShares).toBe(50);
+    expect(result.isClosed).toBe(false);
+  });
+
+  it('partial sell loss: avg=$200, 100 shares, sell 50@$180 → pnl -$1,000, 50 remaining', () => {
+    const result = calcStockSell(200, 100, 180, 50);
+    expect(result.realizedPnL).toBeCloseTo(-1000);
+    expect(result.newShares).toBe(50);
+    expect(result.isClosed).toBe(false);
+  });
+
+  it('full sell: sell all shares → isClosed=true, newShares=0', () => {
+    const result = calcStockSell(200, 100, 220, 100);
+    expect(result.realizedPnL).toBeCloseTo(2000);
+    expect(result.newShares).toBe(0);
+    expect(result.isClosed).toBe(true);
+  });
+
+  it('做T sell leg: avg=$308.18, 190 shares, sell 10@$350 → pnl +$418.20', () => {
+    // (350 - 308.18) × 10 = 41.82 × 10 = 418.20
+    const result = calcStockSell(308.18, 190, 350, 10);
+    expect(result.realizedPnL).toBeCloseTo(418.20, 1);
+    expect(result.newShares).toBe(180);
+    expect(result.isClosed).toBe(false);
+  });
+
+  it('sell at exact avg cost: pnl = 0', () => {
+    const result = calcStockSell(200, 100, 200, 50);
+    expect(result.realizedPnL).toBeCloseTo(0);
+    expect(result.newShares).toBe(50);
+  });
+
+  it('avg cost unchanged after partial sell (sell does not affect avgCost)', () => {
+    // Caller is responsible for NOT updating avgCost on sell
+    const result = calcStockSell(308.18, 190, 350, 10);
+    // avgCost is NOT part of return — caller keeps original avgCost
+    expect(result).not.toHaveProperty('newAvgCost');
+  });
+
+  it('string inputs are coerced', () => {
+    const result = calcStockSell('200', '100', '220', '50');
+    expect(result.realizedPnL).toBeCloseTo(1000);
+    expect(result.newShares).toBe(50);
+  });
+});
+
+// ─── calcStockTotalRealizedPnL ────────────────────────────────────────────────
+// 从交易历史中汇总所有 SELL 记录的 realizedPnL。
+// BUY 记录的 realizedPnL 应为 0，不影响结果。
+
+describe('calcStockTotalRealizedPnL', () => {
+  it('empty history returns 0', () => {
+    expect(calcStockTotalRealizedPnL([])).toBe(0);
+  });
+
+  it('null/undefined history returns 0', () => {
+    expect(calcStockTotalRealizedPnL(null)).toBe(0);
+    expect(calcStockTotalRealizedPnL(undefined)).toBe(0);
+  });
+
+  it('history with only BUY entries returns 0', () => {
+    const history = [
+      { action: 'BUY', shares: 190, price: 308.18, realizedPnL: 0 },
+      { action: 'BUY', shares: 10,  price: 300.00, realizedPnL: 0 },
+    ];
+    expect(calcStockTotalRealizedPnL(history)).toBe(0);
+  });
+
+  it('single SELL profit: returns that pnl', () => {
+    const history = [
+      { action: 'BUY',  shares: 190, price: 308.18, realizedPnL: 0 },
+      { action: 'SELL', shares: 10,  price: 350.00, realizedPnL: 418.20 },
+    ];
+    expect(calcStockTotalRealizedPnL(history)).toBeCloseTo(418.20);
+  });
+
+  it('做T round-trip: sell profit then rebuy (BUY) → only SELL counts', () => {
+    const history = [
+      { action: 'BUY',  shares: 190, price: 308.18, realizedPnL: 0 },
+      { action: 'SELL', shares: 10,  price: 350.00, realizedPnL: 418.20 }, // +$418.20
+      { action: 'BUY',  shares: 10,  price: 300.00, realizedPnL: 0 },       // rebuy, no pnl
+    ];
+    expect(calcStockTotalRealizedPnL(history)).toBeCloseTo(418.20);
+  });
+
+  it('multiple SELL entries accumulate correctly', () => {
+    const history = [
+      { action: 'BUY',  shares: 100, price: 200, realizedPnL: 0 },
+      { action: 'SELL', shares: 30,  price: 220, realizedPnL: 600 },   // +$600
+      { action: 'SELL', shares: 20,  price: 180, realizedPnL: -400 },  // -$400
+      { action: 'SELL', shares: 50,  price: 210, realizedPnL: 500 },   // +$500
+    ];
+    expect(calcStockTotalRealizedPnL(history)).toBeCloseTo(700);
+  });
+
+  it('missing realizedPnL on SELL entry treated as 0', () => {
+    const history = [
+      { action: 'SELL', shares: 10, price: 220 }, // no realizedPnL field
+    ];
+    expect(calcStockTotalRealizedPnL(history)).toBe(0);
   });
 });

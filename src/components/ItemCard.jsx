@@ -1,21 +1,30 @@
 import React, { useState } from 'react';
 import {
   Archive, AlertTriangle, RefreshCw, StopCircle,
-  History, ChevronUp, Edit3, Trash2, CheckSquare, ArrowRight, RotateCcw, CheckCircle2
+  History, ChevronUp, Edit3, Trash2, CheckSquare, ArrowRight, RotateCcw, CheckCircle2, ShoppingCart
 } from 'lucide-react';
-import { calcNetBasis, calcFinalPnL, calcBreakEven } from '../calc';
+import { calcNetBasis, calcFinalPnL, calcBreakEven, calcStockPnL, calcStockTotalRealizedPnL } from '../calc';
 import { assessLeapsHealth } from '../utils/leapsHealth';
 import { isExpired as checkExpired, calculateDTE } from '../utils/dateUtils';
 import Card from './ui/Card';
 import Button from './ui/Button';
 
-function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onReopen, concentration = 0, strategyTag = null, delta = null }) {
+function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onReopen, onStockTrade, concentration = 0, strategyTag = null, delta = null }) {
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
 
   if (type === 'portfolio' && item.assetType === 'STOCK') {
-    const shares = parseInt(item.contracts) || 1;
+    const shares = parseInt(item.contracts) || 0;
     const isClosed = item.status === 'CLOSED';
     const totalCost = (parseFloat(item.entryPrice) || 0) * shares;
+    const history = item.history || [];
+    const tradeHistory = history.filter(h => h.action === 'BUY' || h.action === 'SELL' || h.action === 'INIT');
+    const realizedPnL = calcStockTotalRealizedPnL(history);
+    const hasRealizedPnL = tradeHistory.some(h => h.action === 'SELL');
+    // Final P&L for closed position: history-based if available, else simple formula
+    const finalPnL = isClosed
+      ? (realizedPnL !== 0 ? realizedPnL : calcStockPnL(item.entryPrice, item.closePrice, shares))
+      : null;
+
     return (
       <Card className={`p-4 hover:shadow-md transition-shadow ${isClosed ? 'opacity-75 bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800' : ''}`}>
         <div className="flex justify-between items-center gap-2">
@@ -29,18 +38,75 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
             <div className="text-sm text-slate-500 dark:text-slate-400">
               均价 ${parseFloat(item.entryPrice).toFixed(2)} × {shares} 股
             </div>
+            {hasRealizedPnL && !isClosed && (
+              <div className="text-xs mt-0.5">
+                已实现: <span className={`font-mono font-bold ${realizedPnL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                  {realizedPnL >= 0 ? '+' : ''}${realizedPnL.toFixed(2)}
+                </span>
+              </div>
+            )}
           </div>
           <div className="text-right shrink-0 flex flex-col items-end gap-2">
             <div>
-              <div className="text-xs text-slate-400 font-bold uppercase">总成本</div>
-              <div className="text-xl font-mono font-bold text-slate-700 dark:text-slate-200">${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+              <div className="text-xs text-slate-400 font-bold uppercase">{isClosed ? '总盈亏' : '总成本'}</div>
+              {isClosed
+                ? <div className={`text-xl font-mono font-bold ${finalPnL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                    {finalPnL >= 0 ? '+' : '-'}${Math.abs(finalPnL).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                : <div className="text-xl font-mono font-bold text-slate-700 dark:text-slate-200">${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+              }
             </div>
             <div className="flex gap-1">
+              {!isClosed && onStockTrade && (
+                <button onClick={() => onStockTrade(item)} className="p-1.5 text-teal-500 bg-teal-50 dark:bg-teal-900/20 rounded hover:bg-teal-100" title="买入/卖出"><ShoppingCart size={16} /></button>
+              )}
+              {tradeHistory.length > 0 && (
+                <button onClick={() => setIsHistoryExpanded(v => !v)} className="p-1.5 text-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 rounded hover:bg-indigo-100" title="交易历史">
+                  {isHistoryExpanded ? <ChevronUp size={16} /> : <History size={16} />}
+                </button>
+              )}
               {!isClosed && <button onClick={() => onEdit(item)} className="p-1.5 text-blue-500 bg-blue-50 dark:bg-blue-900/20 rounded hover:bg-blue-100"><Edit3 size={16} /></button>}
               <button onClick={() => onDelete(item.id, 'portfolio')} className="p-1.5 text-rose-500 bg-rose-50 dark:bg-rose-900/20 rounded hover:bg-rose-100"><Trash2 size={16} /></button>
             </div>
           </div>
         </div>
+
+        {/* Stock trade history */}
+        {isHistoryExpanded && tradeHistory.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 text-sm">
+            <div className="text-xs font-bold text-slate-400 mb-2 flex items-center gap-1"><History size={12} /> 交易历史</div>
+            {tradeHistory.map((h, idx) => {
+              const isInit = h.action === 'INIT';
+              const isBuy  = h.action === 'BUY';
+              const isSell = h.action === 'SELL';
+              const labelCls = isInit
+                ? 'text-slate-500 dark:text-slate-400'
+                : isBuy ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
+              return (
+                <div key={idx} className="flex items-center py-1 border-b border-dashed border-slate-100 dark:border-slate-800 last:border-0">
+                  <span className="text-slate-500 text-xs font-mono shrink-0 w-20">{h.date}</span>
+                  <span className={`text-xs font-bold shrink-0 w-10 ${labelCls}`}>
+                    {isInit ? 'INIT' : isBuy ? 'BUY' : 'SELL'}
+                  </span>
+                  <span className="flex-1 text-xs text-slate-600 dark:text-slate-300 px-1">
+                    {h.shares} 股 @ ${parseFloat(h.price).toFixed(2)}
+                    {h.notes ? <span className="text-slate-400 ml-1">({h.notes})</span> : null}
+                  </span>
+                  {isSell && (
+                    <span className={`font-mono text-xs shrink-0 ${h.realizedPnL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                      {h.realizedPnL >= 0 ? '+' : ''}${parseFloat(h.realizedPnL).toFixed(2)}
+                    </span>
+                  )}
+                  {(isInit || isBuy) && (
+                    <span className="font-mono text-xs shrink-0 text-slate-400">
+                      均价→${parseFloat(h.avgCostAfter).toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </Card>
     );
   }

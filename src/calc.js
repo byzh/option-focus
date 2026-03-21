@@ -108,6 +108,56 @@ export function calcPMCCNetCost(leapsPos, closedCalls) {
   return entryPrice * 100 * contracts - calcRealizedCredits(closedCalls);
 }
 
+// ─── Stock trading calculations ──────────────────────────────────────────────
+
+/**
+ * Weighted average cost after buying additional shares.
+ * @returns {{ newAvgCost: number, newShares: number }}
+ */
+export function calcStockBuy(avgCost, shares, buyPrice, buyShares) {
+  const ac = parseFloat(avgCost) || 0;
+  const s  = parseInt(shares)   || 0;
+  const bp = parseFloat(buyPrice)  || 0;
+  const bs = parseInt(buyShares)   || 0;
+  const newShares = s + bs;
+  if (newShares === 0) return { newAvgCost: 0, newShares: 0 };
+  return {
+    newAvgCost: (ac * s + bp * bs) / newShares,
+    newShares,
+  };
+}
+
+/**
+ * Realized P&L and remaining shares after selling stock.
+ * Average cost is unaffected by a sell — caller retains the existing avgCost.
+ * @returns {{ realizedPnL: number, newShares: number, isClosed: boolean }}
+ */
+export function calcStockSell(avgCost, shares, sellPrice, soldShares) {
+  const ac = parseFloat(avgCost)    || 0;
+  const s  = parseInt(shares)       || 0;
+  const sp = parseFloat(sellPrice)  || 0;
+  const ss = parseInt(soldShares)   || 0;
+  const newShares = s - ss;
+  return {
+    realizedPnL: (sp - ac) * ss,
+    newShares,
+    isClosed: newShares <= 0,
+  };
+}
+
+/**
+ * Total realized P&L from all SELL entries in a stock's history.
+ * BUY and other action entries are ignored.
+ * @param {Array} history
+ * @returns {number}
+ */
+export function calcStockTotalRealizedPnL(history) {
+  return (history || []).reduce((sum, h) => {
+    if (h.action !== 'SELL') return sum;
+    return sum + (parseFloat(h.realizedPnL) || 0);
+  }, 0);
+}
+
 /**
  * PMCC (Poor Man's Covered Call) break-even per share.
  *   leaps.strike + calcPMCCNetCost / (100 × contracts)
