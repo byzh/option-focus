@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { doc, setDoc, deleteDoc, collection, getDocs, updateDoc } from 'firebase/firestore';
-import { callTastytradeApi } from '../utils/apiClient';
 import { getETDateString } from '../utils/dateUtils';
+import { connectDxFeed } from '../utils/dxFeedWebSocket';
 
 const APP_ID = 'option-focus-v2';
 
@@ -95,146 +95,41 @@ export function useSkewHistory({ user, db }) {
  * Connects to dxFeed WebSocket and collects Greeks (delta, volatility) for all strikes.
  * Returns a Promise that resolves with the 25-delta risk reversal value (put25dIV - call25dIV).
  */
-function fetchGreeksFromWebSocket(user, expiration, wsRef, timeoutRef) {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const tokenResponse = await callTastytradeApi(user, '/api-quote-tokens');
-      const tokenData = tokenResponse.data || tokenResponse;
-      const token = tokenData.token;
-      const wsUrl = tokenData['dxlink-url'] || 'wss://tasty-openapi-ws.dxfeed.com/realtime';
-      if (!token) throw new Error('未获取到 dxFeed token');
+async function fetchGreeksFromWebSocket(user, expiration, wsRef, timeoutRef) {
+  const strikeList = Array.isArray(expiration.strikes) ? expiration.strikes : [];
+  const subscriptions = [];
+  const symbolMap = {};
 
-      const strikeList = Array.isArray(expiration.strikes) ? expiration.strikes : [];
-      const subscriptions = [];
-      const symbolMap = {}; // streamerSymbol → { price, side }
-
-      strikeList.forEach(strike => {
-        const price = String(parseFloat(strike['strike-price']));
-        if (strike['call-streamer-symbol']) {
-          subscriptions.push({ type: 'Greeks', symbol: strike['call-streamer-symbol'] });
-          symbolMap[strike['call-streamer-symbol']] = { price, side: 'call' };
-        }
-        if (strike['put-streamer-symbol']) {
-          subscriptions.push({ type: 'Greeks', symbol: strike['put-streamer-symbol'] });
-          symbolMap[strike['put-streamer-symbol']] = { price, side: 'put' };
-        }
-      });
-
-      if (subscriptions.length === 0) return reject(new Error('无可用期权合约符号'));
-
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-      const collected = {}; // price → { callDelta, callIV, putDelta, putIV }
-
-      const hardTimeout = setTimeout(() => {
-        if (ws.readyState === WebSocket.OPEN) ws.close();
-        const rr = computeRR(collected);
-        if (rr !== null) resolve(rr);
-        else reject(new Error('连接超时，未收到 Greeks 数据'));
-      }, 20000);
-
-      const finalize = () => {
-        clearTimeout(hardTimeout);
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        if (ws.readyState === WebSocket.OPEN) ws.close();
-        wsRef.current = null;
-        const rr = computeRR(collected);
-        if (rr !== null) resolve(rr);
-        else reject(new Error('未收到有效 Greeks 数据'));
-      };
-
-      ws.onopen = () => {
-        ws.send(JSON.stringify({
-          type: 'SETUP', channel: 0, version: '0.1',
-          keepaliveTimeout: 60, acceptKeepaliveTimeout: 60,
-        }));
-      };
-
-      ws.onmessage = (event) => {
-        let msg;
-        try { msg = JSON.parse(event.data); } catch { return; }
-
-        switch (msg.type) {
-          case 'SETUP':
-            ws.send(JSON.stringify({ type: 'AUTH', channel: 0, token }));
-            break;
-
-          case 'AUTH_STATE':
-            if (msg.state === 'AUTHORIZED') {
-              ws.send(JSON.stringify({
-                type: 'CHANNEL_REQUEST', channel: 1,
-                service: 'FEED', parameters: { contract: 'AUTO' },
-              }));
-            }
-            break;
-
-          case 'CHANNEL_OPENED':
-            if (msg.channel === 1) {
-              ws.send(JSON.stringify({
-                type: 'FEED_SETUP', channel: 1,
-                acceptAggregationPeriod: 0, acceptDataFormat: 'COMPACT',
-                acceptEventFields: { Greeks: ['eventSymbol', 'delta', 'volatility'] },
-              }));
-              ws.send(JSON.stringify({
-                type: 'FEED_SUBSCRIPTION', channel: 1,
-                reset: true, add: subscriptions,
-              }));
-              timeoutRef.current = setTimeout(finalize, 8000);
-            }
-            break;
-
-          case 'FEED_DATA': {
-            if (msg.channel !== 1) break;
-            // COMPACT format: ["Greeks", [sym1, delta1, vol1, sym2, delta2, vol2, ...]]
-            const data = msg.data;
-            if (!Array.isArray(data) || data.length < 2) break;
-            const values = data[1];
-            if (!Array.isArray(values)) break;
-            for (let i = 0; i + 2 < values.length; i += 3) {
-              const sym = values[i];
-              const delta = Number(values[i + 1]);
-              const vol = Number(values[i + 2]);
-              const info = symbolMap[sym];
-              if (!info) continue;
-              if (!collected[info.price]) collected[info.price] = {};
-              if (info.side === 'call') {
-                collected[info.price].callDelta = delta;
-                collected[info.price].callIV = vol;
-              } else {
-                collected[info.price].putDelta = delta;
-                collected[info.price].putIV = vol;
-              }
-            }
-            break;
-          }
-
-          case 'KEEPALIVE':
-            ws.send(JSON.stringify({ type: 'KEEPALIVE', channel: msg.channel }));
-            break;
-
-          default: break;
-        }
-      };
-
-      ws.onerror = () => {
-        clearTimeout(hardTimeout);
-        wsRef.current = null;
-        reject(new Error('Greeks WebSocket 连接错误'));
-      };
-
-      ws.onclose = () => {
-        clearTimeout(hardTimeout);
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        wsRef.current = null;
-        const rr = computeRR(collected);
-        if (rr !== null) resolve(rr);
-        else reject(new Error('连接已中断，未收到 Greeks 数据'));
-      };
-
-    } catch (e) {
-      reject(e);
+  strikeList.forEach(strike => {
+    const price = String(parseFloat(strike['strike-price']));
+    if (strike['call-streamer-symbol']) {
+      subscriptions.push({ type: 'Greeks', symbol: strike['call-streamer-symbol'] });
+      symbolMap[strike['call-streamer-symbol']] = { price, side: 'call' };
+    }
+    if (strike['put-streamer-symbol']) {
+      subscriptions.push({ type: 'Greeks', symbol: strike['put-streamer-symbol'] });
+      symbolMap[strike['put-streamer-symbol']] = { price, side: 'put' };
     }
   });
+
+  if (subscriptions.length === 0) throw new Error('无可用期权合约符号');
+
+  const rawMap = await connectDxFeed(user, subscriptions, 'Greeks', {
+    wsRef, timeoutRef, hardTimeoutMs: 20000, collectTimeoutMs: 8000,
+  });
+
+  const collected = {};
+  for (const [sym, { delta, vol }] of rawMap) {
+    const info = symbolMap[sym];
+    if (!info) continue;
+    if (!collected[info.price]) collected[info.price] = {};
+    if (info.side === 'call') { collected[info.price].callDelta = delta; collected[info.price].callIV = vol; }
+    else { collected[info.price].putDelta = delta; collected[info.price].putIV = vol; }
+  }
+
+  const rr = computeRR(collected);
+  if (rr === null) throw new Error('未收到有效 Greeks 数据');
+  return rr;
 }
 
 /**

@@ -11,11 +11,11 @@ import {
   GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
 } from 'firebase/auth';
 import {
-  collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot
+  collection, addDoc, updateDoc, deleteDoc, doc
 } from 'firebase/firestore';
 
 import { app, auth, db, functions, initError, APP_ID } from './firebase/firebaseInit';
-import { getLocalTodayString, isExpiredByTwoDays, isExpired, calculateDTE } from './utils/dateUtils';
+import { getLocalTodayString, isExpiredByTwoDays, calculateDTE } from './utils/dateUtils';
 
 import Card from './components/ui/Card';
 import Button from './components/ui/Button';
@@ -29,6 +29,7 @@ import ItemCard from './components/ItemCard';
 import AddEditModal from './components/AddEditModal';
 import MonitorTab from './components/MonitorTab';
 import StrategyTab from './components/StrategyTab';
+import { useFirestorePositions } from './hooks/useFirestorePositions';
 
 const EMPTY_FORM = () => ({
   id: null, ticker: '', assetType: 'OPTION', type: 'CALL', direction: 'BUY', actionCategory: 'OPEN',
@@ -57,8 +58,7 @@ export default function App() {
     return () => document.removeEventListener('mousedown', handler);
   }, [mobileMenuOpen]);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [positions, setPositions] = useState([]);
-  const [plans, setPlans] = useState([]);
+  const { positions, plans } = useFirestorePositions({ user, db });
   const [executionPlan, setExecutionPlan] = useState(null);
   const [isMigrating, setIsMigrating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -137,50 +137,9 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    try { await signOut(auth); setPositions([]); setPlans([]); }
+    try { await signOut(auth); }
     catch (error) { console.error('Logout Failed:', error); }
   };
-
-  // Firestore sync
-  useEffect(() => {
-    if (!user || !db) return;
-    const unsubPos = onSnapshot(collection(db, 'artifacts', APP_ID, 'users', user.uid, 'positions'), (s) => setPositions(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e));
-    const unsubPlans = onSnapshot(collection(db, 'artifacts', APP_ID, 'users', user.uid, 'plans'), (s) => setPlans(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e));
-    return () => { unsubPos(); unsubPlans(); };
-  }, [user]);
-
-  // Auto-close expired positions
-  useEffect(() => {
-    if (!user || !db || positions.length === 0) return;
-
-    positions.forEach(p => {
-      if (!isExpired(p.expiration)) return;
-
-      const today = getLocalTodayString();
-      const historyArr = p.history || [];
-      const hasAutoExpireRecord = historyArr.some(h => h.action === 'AUTO_EXPIRE');
-      // If reopened after expiration date, require manual close — skip auto-expire
-      const reopenEntry = historyArr.find(h => h.action === 'REOPEN');
-      const reopenedAfterExpiry = reopenEntry && reopenEntry.date > p.expiration;
-
-      if (p.status !== 'CLOSED' && !hasAutoExpireRecord && !reopenedAfterExpiry) {
-        // OPEN expired → Close with auto-expire record
-        console.log(`Auto-closing expired position: ${p.ticker}`);
-        updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', p.id), {
-          status: 'CLOSED',
-          closePrice: 0,
-          dateClosed: today,
-          history: [{ date: today, action: 'AUTO_EXPIRE', closePrice: 0, notes: '自动过期' }, ...(p.history || [])]
-        }).catch(e => console.error('Failed to auto-close:', e));
-      } else if (p.status === 'CLOSED' && !hasAutoExpireRecord) {
-        // Already CLOSED but missing AUTO_EXPIRE → Add the record
-        console.log(`Adding auto-expire record to: ${p.ticker}`);
-        updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', p.id), {
-          history: [{ date: p.dateClosed || today, action: 'AUTO_EXPIRE', closePrice: 0, notes: '自动过期' }, ...(p.history || [])]
-        }).catch(e => console.error('Failed to add auto-expire record:', e));
-      }
-    });
-  }, [positions, user, db]);
 
   // Migration
   const checkMigrationEligibility = () => {

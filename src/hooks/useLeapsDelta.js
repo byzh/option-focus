@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { callTastytradeApi } from '../utils/apiClient';
+import { connectDxFeed } from '../utils/dxFeedWebSocket';
 
 /**
  * Fetches current delta for a list of open LEAPS (BUY CALL, DTE > 90).
@@ -24,12 +25,6 @@ export function useLeapsDelta({ user }) {
     setError(null);
 
     try {
-      const tokenResponse = await callTastytradeApi(user, '/api-quote-tokens');
-      const tokenData = tokenResponse.data || tokenResponse;
-      const token = tokenData.token;
-      const wsUrl = tokenData['dxlink-url'] || 'wss://tasty-openapi-ws.dxfeed.com/realtime';
-      if (!token) throw new Error('未获取到 dxFeed token');
-
       // Fetch actual call-streamer-symbol from option chain API for each position.
       // buildOCCSymbol locally was unreliable — dxFeed may not recognize the format.
       const symbolMap = {}; // streamerSym → positionId
@@ -63,104 +58,16 @@ export function useLeapsDelta({ user }) {
         return;
       }
 
-      await new Promise((resolve, reject) => {
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
-        const collected = {}; // positionId → delta
-
-        const hardTimeout = setTimeout(() => {
-          if (ws.readyState === WebSocket.OPEN) ws.close();
-          setDeltaMap(prev => ({ ...prev, ...collected }));
-          resolve();
-        }, 15000);
-
-        const finalize = () => {
-          clearTimeout(hardTimeout);
-          if (ws.readyState === WebSocket.OPEN) ws.close();
-          wsRef.current = null;
-          setDeltaMap(prev => ({ ...prev, ...collected }));
-          resolve();
-        };
-
-        ws.onopen = () => {
-          ws.send(JSON.stringify({
-            type: 'SETUP', channel: 0, version: '0.1',
-            keepaliveTimeout: 60, acceptKeepaliveTimeout: 60,
-          }));
-        };
-
-        ws.onmessage = (event) => {
-          let msg;
-          try { msg = JSON.parse(event.data); } catch { return; }
-
-          switch (msg.type) {
-            case 'SETUP':
-              ws.send(JSON.stringify({ type: 'AUTH', channel: 0, token }));
-              break;
-
-            case 'AUTH_STATE':
-              if (msg.state === 'AUTHORIZED') {
-                ws.send(JSON.stringify({
-                  type: 'CHANNEL_REQUEST', channel: 1,
-                  service: 'FEED', parameters: { contract: 'AUTO' },
-                }));
-              }
-              break;
-
-            case 'CHANNEL_OPENED':
-              if (msg.channel === 1) {
-                ws.send(JSON.stringify({
-                  type: 'FEED_SETUP', channel: 1,
-                  acceptAggregationPeriod: 0, acceptDataFormat: 'COMPACT',
-                  acceptEventFields: { Greeks: ['eventSymbol', 'delta', 'volatility'] },
-                }));
-                ws.send(JSON.stringify({
-                  type: 'FEED_SUBSCRIPTION', channel: 1,
-                  reset: true, add: subscriptions,
-                }));
-                // Collect for 8 seconds then finalize
-                setTimeout(finalize, 8000);
-              }
-              break;
-
-            case 'FEED_DATA': {
-              if (msg.channel !== 1) break;
-              const data = msg.data;
-              if (!Array.isArray(data) || data.length < 2) break;
-              const values = data[1];
-              if (!Array.isArray(values)) break;
-              for (let i = 0; i + 2 < values.length; i += 3) {
-                const sym = values[i];
-                const delta = Number(values[i + 1]);
-                const posId = symbolMap[sym];
-                if (posId != null && !isNaN(delta)) {
-                  collected[posId] = delta;
-                }
-              }
-              break;
-            }
-
-            case 'KEEPALIVE':
-              ws.send(JSON.stringify({ type: 'KEEPALIVE', channel: msg.channel }));
-              break;
-
-            default: break;
-          }
-        };
-
-        ws.onerror = () => {
-          clearTimeout(hardTimeout);
-          wsRef.current = null;
-          reject(new Error('Delta WebSocket 连接错误'));
-        };
-
-        ws.onclose = () => {
-          clearTimeout(hardTimeout);
-          wsRef.current = null;
-          setDeltaMap(prev => ({ ...prev, ...collected }));
-          resolve();
-        };
+      const rawMap = await connectDxFeed(user, subscriptions, 'Greeks', {
+        wsRef, hardTimeoutMs: 15000, collectTimeoutMs: 8000,
       });
+
+      const newDeltas = {};
+      for (const [sym, { delta }] of rawMap) {
+        const posId = symbolMap[sym];
+        if (posId != null && !isNaN(delta)) newDeltas[posId] = delta;
+      }
+      setDeltaMap(prev => ({ ...prev, ...newDeltas }));
     } catch (e) {
       setError(e.message);
     } finally {
