@@ -434,19 +434,6 @@ export default function App() {
               <div className="flex gap-2 shrink-0"><Button onClick={() => setShowAddModal(true)}><Plus size={18} /><span className="whitespace-nowrap">{activeTab === 'portfolio' ? '记录持仓' : '新增备忘'}</span></Button></div>
             </div>
 
-            {/* Sort controls */}
-            {activeTab === 'portfolio' && (
-              <div className="flex items-center gap-2 mb-4 text-xs">
-                <span className="text-slate-400 font-medium">排序:</span>
-                {[{ key: 'ticker', label: '名称' }, { key: 'days', label: '剩余天数' }].map(({ key, label }) => (
-                  <button key={key} onClick={() => handleSort(key)} className={`flex items-center gap-1 px-2.5 py-1 rounded-full border transition-colors ${sortConfig.key === key ? 'bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-medium' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}>
-                    {label}
-                    {sortConfig.key === key && <ChevronUp size={12} className={sortConfig.direction === 'desc' ? 'rotate-180 transition-transform' : 'transition-transform'} />}
-                  </button>
-                ))}
-              </div>
-            )}
-
             {/* Search & Filter */}
             {activeTab === 'portfolio' && (
               <div className="mb-4 space-y-2">
@@ -476,6 +463,15 @@ export default function App() {
                   <span className="text-xs text-slate-400 font-medium">视图:</span>
                   <button onClick={() => setShowAggregated(false)} className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${!showAggregated ? 'bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-medium' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}>详细</button>
                   <button onClick={() => setShowAggregated(true)} className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${showAggregated ? 'bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-medium' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}>按代码聚合</button>
+                </div>
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-700 text-xs">
+                  <span className="text-slate-400 font-medium">排序:</span>
+                  {[{ key: 'ticker', label: '名称' }, { key: 'days', label: '剩余天数' }].map(({ key, label }) => (
+                    <button key={key} onClick={() => handleSort(key)} className={`flex items-center gap-1 px-2.5 py-1 rounded-full border transition-colors ${sortConfig.key === key ? 'bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-medium' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}>
+                      {label}
+                      {sortConfig.key === key && <ChevronUp size={12} className={sortConfig.direction === 'desc' ? 'rotate-180 transition-transform' : 'transition-transform'} />}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
