@@ -89,6 +89,8 @@ export default function App() {
     if (leapsPositions.length > 0) fetchDeltas(leapsPositions);
   }, [positions, user]);
 
+  useEffect(() => { window.scrollTo(0, 0); }, [activeTab]);
+
   const handleSort = (key) => setSortConfig(prev =>
     prev.key === key ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' }
   );
