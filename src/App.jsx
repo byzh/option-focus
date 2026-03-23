@@ -365,6 +365,7 @@ export default function App() {
           </div>
         </header>
         {activeTab !== 'settings' && (
+          <>
           <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
             <div className="max-w-4xl mx-auto px-4 hidden sm:flex gap-4">
               <button onClick={() => setActiveTab('portfolio')} className={`pb-3 pt-2 px-2 font-medium text-sm transition-all relative shrink-0 whitespace-nowrap ${activeTab === 'portfolio' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>
@@ -382,6 +383,35 @@ export default function App() {
               </button>
             </div>
           </div>
+          {/* 手机 tab 栏 */}
+          <div className="sm:hidden bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+            <div className="max-w-4xl mx-auto px-4 flex items-center relative">
+              <button onClick={() => setActiveTab('portfolio')} className={`pb-3 pt-2 px-2 font-medium text-sm transition-all relative shrink-0 whitespace-nowrap ${activeTab === 'portfolio' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'}`}>
+                持仓监控 (Portfolio){activeTab === 'portfolio' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
+              </button>
+              <button onClick={() => setActiveTab('opportunities')} className={`pb-3 pt-2 px-2 font-medium text-sm transition-all relative shrink-0 whitespace-nowrap ${activeTab === 'opportunities' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'}`}>
+                策略机会 (Strategy){activeTab === 'opportunities' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
+              </button>
+              <div className="ml-auto relative" ref={mobileMenuRef}>
+                <button onClick={() => setMobileMenuOpen(v => !v)} className={`pb-3 pt-2 px-2 flex items-center gap-1 text-sm transition-all relative ${['monitor','planner'].includes(activeTab) ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'}`}>
+                  <Menu size={16} />
+                  {todaysPlanCount > 0 && <span className="bg-red-500 text-white text-[10px] px-1 py-0.5 rounded-full font-bold animate-pulse">{todaysPlanCount}</span>}
+                  {['monitor','planner'].includes(activeTab) && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
+                </button>
+                {mobileMenuOpen && (
+                  <div className="absolute right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-50 min-w-[140px]">
+                    <button onClick={() => { setActiveTab('monitor'); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 text-sm rounded-t-xl transition-colors ${activeTab === 'monitor' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
+                      行情扫描 (Monitor)
+                    </button>
+                    <button onClick={() => { setActiveTab('planner'); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 text-sm rounded-b-xl transition-colors flex items-center gap-2 ${activeTab === 'planner' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
+                      交易备忘 (Planner){todaysPlanCount > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold animate-pulse">{todaysPlanCount}</span>}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          </>
         )}
       </div>
 
@@ -402,33 +432,6 @@ export default function App() {
           </Card>
         ) : (
           <>
-
-            {/* 手机 tab 栏 */}
-            <div className="flex sm:hidden items-center mb-6 border-b border-slate-200 dark:border-slate-700 pb-1 relative">
-              <button onClick={() => setActiveTab('portfolio')} className={`pb-3 px-2 font-medium text-sm transition-all relative shrink-0 whitespace-nowrap ${activeTab === 'portfolio' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'}`}>
-                持仓监控 (Portfolio){activeTab === 'portfolio' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
-              </button>
-              <button onClick={() => setActiveTab('opportunities')} className={`pb-3 px-2 font-medium text-sm transition-all relative shrink-0 whitespace-nowrap ${activeTab === 'opportunities' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'}`}>
-                策略机会 (Strategy){activeTab === 'opportunities' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
-              </button>
-              <div className="ml-auto relative" ref={mobileMenuRef}>
-                <button onClick={() => setMobileMenuOpen(v => !v)} className={`pb-3 px-2 flex items-center gap-1 text-sm transition-all relative ${['monitor','planner'].includes(activeTab) ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'}`}>
-                  <Menu size={16} />
-                  {todaysPlanCount > 0 && <span className="bg-red-500 text-white text-[10px] px-1 py-0.5 rounded-full font-bold animate-pulse">{todaysPlanCount}</span>}
-                  {['monitor','planner'].includes(activeTab) && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
-                </button>
-                {mobileMenuOpen && (
-                  <div className="absolute right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-50 min-w-[140px]">
-                    <button onClick={() => { setActiveTab('monitor'); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 text-sm rounded-t-xl transition-colors ${activeTab === 'monitor' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
-                      行情扫描 (Monitor)
-                    </button>
-                    <button onClick={() => { setActiveTab('planner'); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-3 text-sm rounded-b-xl transition-colors flex items-center gap-2 ${activeTab === 'planner' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
-                      交易备忘 (Planner){todaysPlanCount > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold animate-pulse">{todaysPlanCount}</span>}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
 
             <div className={activeTab === 'monitor' ? '' : 'hidden'}>
               <MonitorTab user={user} db={db} functions={functions} />
