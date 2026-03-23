@@ -1,4 +1,3 @@
-import React from 'react';
 import { calculateDTE } from '../utils/dateUtils';
 import { Loader2 } from 'lucide-react';
 import Card from './ui/Card';
@@ -62,7 +61,7 @@ function AddEditModal({ formData, setFormData, onSubmit, onClose, activeTab, pos
 
           {/* Ticker row */}
           <div className={`grid gap-4 ${isStock ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
-            <Input label="代码 (Ticker)" value={formData.ticker} onChange={e => update('ticker', e.target.value.toUpperCase())} required readOnly={activeTab === 'planner' && formData.actionCategory !== 'OPEN'} />
+            <Input label="代码 (Ticker)" value={formData.ticker} onChange={e => update('ticker', e.target.value.trim().toUpperCase())} required readOnly={activeTab === 'planner' && formData.actionCategory !== 'OPEN'} />
             {!isStock && (
               <div className="grid grid-cols-2 gap-2">
                 <Select label="类型 (Type)" value={formData.type} onChange={e => update('type', e.target.value)} options={[{ value: 'CALL', label: 'Call' }, { value: 'PUT', label: 'Put' }]} />

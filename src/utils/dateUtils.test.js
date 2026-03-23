@@ -3,7 +3,6 @@ import {
   getLocalTodayString,
   getETDateString,
   isExpired,
-  isExpiredByTwoDays,
   calculateDTE,
 } from './dateUtils';
 
@@ -77,41 +76,6 @@ describe('isExpired', () => {
   });
 });
 
-describe('isExpiredByTwoDays', () => {
-  beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
-
-  it('returns false for null / undefined / empty string', () => {
-    expect(isExpiredByTwoDays(null)).toBe(false);
-    expect(isExpiredByTwoDays(undefined)).toBe(false);
-    expect(isExpiredByTwoDays('')).toBe(false);
-  });
-
-  it('returns false when expiration is today', () => {
-    vi.setSystemTime(FIXED_DATE);
-    expect(isExpiredByTwoDays('2026-03-20')).toBe(false);
-  });
-
-  it('returns false when expired 1 day ago (diffDays = 1, not > 2)', () => {
-    vi.setSystemTime(FIXED_DATE);
-    expect(isExpiredByTwoDays('2026-03-19')).toBe(false);
-  });
-
-  it('returns false when expired exactly 2 days ago (diffDays = 2, not > 2)', () => {
-    vi.setSystemTime(FIXED_DATE);
-    expect(isExpiredByTwoDays('2026-03-18')).toBe(false);
-  });
-
-  it('returns true when expired 3 days ago (diffDays = 3 > 2)', () => {
-    vi.setSystemTime(FIXED_DATE);
-    expect(isExpiredByTwoDays('2026-03-17')).toBe(true);
-  });
-
-  it('returns true when expired long ago', () => {
-    vi.setSystemTime(FIXED_DATE);
-    expect(isExpiredByTwoDays('2025-01-01')).toBe(true);
-  });
-});
 
 describe('calculateDTE', () => {
   beforeEach(() => vi.useFakeTimers());

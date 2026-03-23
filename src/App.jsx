@@ -15,7 +15,7 @@ import {
 } from 'firebase/firestore';
 
 import { app, auth, db, functions, initError, APP_ID } from './firebase/firebaseInit';
-import { getLocalTodayString, isExpiredByTwoDays, calculateDTE } from './utils/dateUtils';
+import { getLocalTodayString, isExpired, calculateDTE } from './utils/dateUtils';
 
 import Card from './components/ui/Card';
 import Button from './components/ui/Button';
@@ -97,7 +97,7 @@ export default function App() {
 
   // Calculate single-stock concentration
   const getTickerConcentration = (ticker) => {
-    const shortPuts = positions.filter(p => p.type === 'PUT' && p.direction === 'SELL' && p.status !== 'CLOSED' && !isExpiredByTwoDays(p.expiration));
+    const shortPuts = positions.filter(p => p.type === 'PUT' && p.direction === 'SELL' && p.status !== 'CLOSED' && !isExpired(p.expiration));
     if (shortPuts.length === 0) return 0;
     const total = shortPuts.reduce((sum, p) => sum + (parseFloat(p.strike) || 0) * 100 * (parseInt(p.contracts) || 1), 0);
     const tickerCost = shortPuts.filter(p => p.ticker === ticker).reduce((sum, p) => sum + (parseFloat(p.strike) || 0) * 100 * (parseInt(p.contracts) || 1), 0);
@@ -119,7 +119,7 @@ export default function App() {
       const totalContracts = items.reduce((sum, p) => sum + (parseInt(p.contracts) || 1), 0);
       const totalCost = items.reduce((sum, p) => sum + calculateNetBasis(p), 0);
       const avgCost = totalCost > 0 ? totalCost / totalContracts : 0;
-      const activeItems = items.filter(p => p.status !== 'CLOSED' && !isExpiredByTwoDays(p.expiration));
+      const activeItems = items.filter(p => p.status !== 'CLOSED' && !isExpired(p.expiration));
       const earliestDTE = activeItems.length > 0 ? Math.min(...activeItems.map(p => {
         return calculateDTE(p.expiration) ?? Infinity;
       })) : Infinity;
@@ -203,7 +203,7 @@ export default function App() {
     }
     let closePrice = 0;
     if (pos.status === 'CLOSED') closePrice = parseFloat(pos.closePrice) || 0;
-    else if (isExpiredByTwoDays(pos.expiration)) closePrice = 0;
+    else if (isExpired(pos.expiration)) closePrice = 0;
     else return null;
     return calcFinalPnL(pos.direction, calculateNetBasis(pos), closePrice, pos.contracts);
   };
@@ -516,7 +516,7 @@ export default function App() {
 
             {/* Short Put risk panel */}
             {activeTab === 'portfolio' && (() => {
-              const shortPuts = positions.filter(p => p.type === 'PUT' && p.direction === 'SELL' && p.status !== 'CLOSED' && !isExpiredByTwoDays(p.expiration));
+              const shortPuts = positions.filter(p => p.type === 'PUT' && p.direction === 'SELL' && p.status !== 'CLOSED' && !isExpired(p.expiration));
               if (shortPuts.length === 0) return null;
               const total = shortPuts.reduce((sum, p) => sum + (parseFloat(p.strike) || 0) * 100 * (parseInt(p.contracts) || 1), 0);
               const requiredNAV = total * 2;
@@ -597,7 +597,7 @@ export default function App() {
             {/* Realized P&L Summary */}
             {activeTab === 'portfolio' && (() => {
               const closedPositions = positions.filter(p =>
-                p.assetType === 'STOCK' ? p.status === 'CLOSED' : (p.status === 'CLOSED' || isExpiredByTwoDays(p.expiration))
+                p.assetType === 'STOCK' ? p.status === 'CLOSED' : (p.status === 'CLOSED' || isExpired(p.expiration))
               );
               if (closedPositions.length === 0) return null;
               const totalPnL = closedPositions.reduce((sum, p) => sum + (calculateFinalPnL(p) || 0), 0);
@@ -623,7 +623,7 @@ export default function App() {
                       {[...closedPositions].sort((a, b) => a.ticker.localeCompare(b.ticker)).map(p => {
                         const pnl = calculateFinalPnL(p) || 0;
                         const isPos = pnl >= 0;
-                        const isExpired = p.status !== 'CLOSED' && isExpiredByTwoDays(p.expiration);
+                        const isExpired = p.status !== 'CLOSED' && isExpired(p.expiration);
                         return (
                           <div key={p.id} className="flex items-center justify-between px-4 py-2 text-sm">
                             <div className="flex items-center gap-3">
@@ -655,7 +655,7 @@ export default function App() {
                       if (filterStatus !== 'ALL') {
                         const isClosed = p.assetType === 'STOCK'
                           ? p.status === 'CLOSED'
-                          : p.status === 'CLOSED' || isExpiredByTwoDays(p.expiration);
+                          : p.status === 'CLOSED' || isExpired(p.expiration);
                         if (filterStatus === 'OPEN' && isClosed) return false;
                         if (filterStatus === 'CLOSED' && !isClosed) return false;
                       }
