@@ -258,7 +258,7 @@ describe('calcPMCCNetCost', () => {
 });
 
 // ─── calcPMCCBreakEven ────────────────────────────────────────────────────────
-// Formula: leaps.strike + (leaps.entryPrice×100×contracts - realizedCredits) / (delta×100×contracts)
+// Formula: leaps.strike + (leaps.entryPrice×100×contracts - realizedCredits) / (100×contracts)
 
 describe('calcPMCCBreakEven', () => {
   // LEAPS: $200 strike, bought at $40.00 (per share), 1 contract
@@ -299,23 +299,6 @@ describe('calcPMCCBreakEven', () => {
 
   it('null closedCalls defaults to empty', () => {
     expect(calcPMCCBreakEven(leapsPos, null)).toBeCloseTo(240);
-  });
-
-  it('delta=0.7: break-even = 200 + 4000/(0.7×100) ≈ 257.14', () => {
-    expect(calcPMCCBreakEven(leapsPos, [], 0.7)).toBeCloseTo(257.14, 1);
-  });
-
-  it('delta=0.8 with one closed call: (4000-300)/(0.8×100) + 200 ≈ 246.25', () => {
-    const closedCall = { direction: 'SELL', entryPrice: 3.00, rollCredit: 0, contracts: 1, closePrice: 0 };
-    expect(calcPMCCBreakEven(leapsPos, [closedCall], 0.8)).toBeCloseTo(246.25, 1);
-  });
-
-  it('delta=0 falls back to 1 (guard against division by zero)', () => {
-    expect(calcPMCCBreakEven(leapsPos, [], 0)).toBeCloseTo(240);
-  });
-
-  it('delta>1 falls back to 1', () => {
-    expect(calcPMCCBreakEven(leapsPos, [], 1.5)).toBeCloseTo(240);
   });
 });
 

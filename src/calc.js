@@ -160,15 +160,13 @@ export function calcStockTotalRealizedPnL(history) {
 
 /**
  * PMCC (Poor Man's Covered Call) break-even per share.
- *   leaps.strike + calcPMCCNetCost / (delta × 100 × contracts)
+ *   leaps.strike + calcPMCCNetCost / (100 × contracts)
  *
  * @param {object} leapsPos   — BUY CALL LEAPS position: { strike, entryPrice, contracts }
  * @param {Array}  closedCalls — CLOSED SELL CALL positions linked to this LEAPS
- * @param {number} delta       — current LEAPS delta (0–1); defaults to 1 if not provided
  */
-export function calcPMCCBreakEven(leapsPos, closedCalls, delta = 1) {
+export function calcPMCCBreakEven(leapsPos, closedCalls) {
   const strike = parseFloat(leapsPos.strike) || 0;
   const contracts = parseInt(leapsPos.contracts) || 1;
-  const d = (delta > 0 && delta <= 1) ? delta : 1;
-  return strike + calcPMCCNetCost(leapsPos, closedCalls) / (d * 100 * contracts);
+  return strike + calcPMCCNetCost(leapsPos, closedCalls) / (100 * contracts);
 }
