@@ -26,7 +26,7 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
       : null;
 
     return (
-      <Card className={`p-4 hover:shadow-md transition-shadow ${isClosed ? 'opacity-75 bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800' : ''}`}>
+      <Card className={`p-4 hover:shadow-md transition-shadow ${isClosed ? 'opacity-60 bg-slate-100 dark:bg-slate-900/30 border-slate-300 dark:border-slate-800' : ''}`}>
         <div className="flex justify-between items-center gap-2">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
@@ -144,7 +144,7 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
     });
 
     return (
-      <Card className={`p-4 hover:shadow-md transition-shadow ${isClosed ? 'opacity-75 bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800' : isExpired ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30' : ''}`}>
+      <Card className={`p-4 hover:shadow-md transition-shadow ${isClosed ? 'opacity-60 bg-slate-100 dark:bg-slate-900/30 border-slate-300 dark:border-slate-800' : isExpired ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30' : ''}`}>
         {/* Top row: position info + P&L */}
         <div className="flex justify-between items-center gap-2">
           <div className="min-w-0 flex-1">
