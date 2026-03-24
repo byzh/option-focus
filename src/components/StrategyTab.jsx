@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { RefreshCw, AlertTriangle, TrendingUp, ChevronDown, ChevronUp, CheckCircle2, XCircle, StopCircle, RotateCcw, Search, X } from 'lucide-react';
 import { detectCC, detectPMCC } from '../utils/strategyDetect';
 import { assessLeapsHealth } from '../utils/leapsHealth';
-import { calcNetBasis, calcFinalPnL } from '../calc';
+import { calcNetBasis, calcFinalPnL, calcPMCCBreakEven } from '../calc';
 import Button from './ui/Button';
 import { calculateDTE } from '../utils/dateUtils';
 
@@ -201,6 +201,7 @@ function PMCCCard({ group, deltaMap, onOpenAddModal, onDirectAction, onReopen })
   const dte = calculateDTE(group.leapsPos.expiration);
   const delta = deltaMap[group.leapsId];
   const health = assessLeapsHealth(dte, delta);
+  const breakEven = calcPMCCBreakEven(group.leapsPos, group.closedLinkedCalls, delta);
   const leapsContracts = parseInt(group.leapsPos.contracts) || 1;
   const coveredContracts = Math.min(group.coveredContracts, leapsContracts);
   const uncoveredContracts = Math.max(0, leapsContracts - coveredContracts);
@@ -287,9 +288,9 @@ function PMCCCard({ group, deltaMap, onOpenAddModal, onDirectAction, onReopen })
           )}
         </div>
         <div>
-          <div className="text-xs text-slate-400 mb-0.5">摊薄后盈亏平衡</div>
+          <div className="text-xs text-slate-400 mb-0.5">摊薄后盈亏平衡{delta ? ` (δ ${delta.toFixed(2)})` : ''}</div>
           <div className={`font-mono font-semibold ${group.closedLinkedCalls.length > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}`}>
-            ${group.breakEven.toFixed(2)}
+            ${breakEven.toFixed(2)}
           </div>
         </div>
       </div>
