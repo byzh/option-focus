@@ -6,13 +6,13 @@ import { getETDateString, calculateDTE } from '../utils/dateUtils';
 const APP_ID = 'option-focus-v2';
 const CHAIN_DELAY_MS = 350; // ~2.8 req/s, well within TastyTrade rate limits
 
-/** Check if it's after 9:45 AM ET on a weekday */
+/** Check if it's after 9:30 AM ET on a weekday */
 function isAfterMarketOpen() {
   const et = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
   const day = et.getDay();
   if (day === 0 || day === 6) return false; // weekend
   const h = et.getHours(), m = et.getMinutes();
-  return h > 9 || (h === 9 && m >= 45);
+  return h > 9 || (h === 9 && m >= 30);
 }
 
 function sleep(ms) {
@@ -113,7 +113,7 @@ export function useSkewAutoJob({ user, db, symbols }) {
     }
   }, [user, db, symbols]);
 
-  // Auto-trigger once per day after 9:45 AM ET
+  // Auto-trigger once per day after 9:30 AM ET
   useEffect(() => {
     if (!user || !db || !symbols?.length) return;
     if (!isAfterMarketOpen()) return;
