@@ -11,10 +11,23 @@ import { useOptionChain } from '../hooks/useOptionChain';
 import { useOIWall } from '../hooks/useOIWall';
 import { useSkewHistory } from '../hooks/useSkewHistory';
 import { useSkewAutoJob } from '../hooks/useSkewAutoJob';
+import { useVix } from '../hooks/useVix';
 import { DEFAULT_SYMBOLS } from '../data/defaultSymbols';
 import { callTastytradeApi } from '../utils/apiClient';
 
 const APP_ID = 'option-focus-v2';
+
+const VIX_ZONES = [
+  { label: '< 15',  max: 15,       valueColor: 'text-green-700 dark:text-green-400' },
+  { label: '15–20', max: 20,       valueColor: 'text-green-500' },
+  { label: '20–30', max: 30,       valueColor: 'text-yellow-500' },
+  { label: '30–40', max: 40,       valueColor: 'text-red-500' },
+  { label: '> 40',  max: Infinity, valueColor: 'text-red-700 dark:text-red-400' },
+];
+
+function getVixZoneIndex(v) {
+  return VIX_ZONES.findIndex(z => v < z.max);
+}
 
 /** Returns true if dateStr (YYYY-MM-DD) is the 3rd Friday of its month */
 function isMonthlyExpiration(dateStr) {
@@ -50,6 +63,9 @@ export default function MarketScanner({ user, db }) {
 
   // Skew auto job — runs once per day after 9:45 AM ET
   const { jobStatus, jobProgress, runSkewJob } = useSkewAutoJob({ user, db, symbols });
+
+  // VIX
+  const { vix, loading: vixLoading, error: vixError } = useVix({ user });
 
   // Sorting
   const [sortKey, setSortKey] = useState('implied-volatility-index-rank');
@@ -245,6 +261,7 @@ export default function MarketScanner({ user, db }) {
               <RotateCw size={11} />
             </button>
           )}
+          <VixBar vix={vix} loading={vixLoading} error={vixError} />
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -518,6 +535,36 @@ export default function MarketScanner({ user, db }) {
         </div>
       )}
     </Card>
+  );
+}
+
+function VixBar({ vix, loading, error }) {
+  // Map VIX 0–50 to 0–100% position, clamped
+  const pct = vix != null ? Math.min(Math.max((vix / 50) * 100, 0), 100) : null;
+  const activeIdx = vix != null ? getVixZoneIndex(vix) : -1;
+  const valueColor = VIX_ZONES[activeIdx]?.valueColor ?? 'text-slate-400';
+
+  return (
+    <div className="flex items-center gap-1.5" title={error ? `VIX error: ${error}` : vix != null ? `VIX: ${vix.toFixed(2)}` : 'VIX 加载中'}>
+      <span className="text-[10px] text-slate-400 shrink-0">VIX</span>
+      <div className="relative w-20 h-1.5 rounded-full overflow-visible"
+        style={{ background: 'linear-gradient(to right, #166534, #22c55e, #facc15, #ef4444, #7f1d1d)' }}
+      >
+        {pct != null && !loading && (
+          <div
+            className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-white border-2 shadow"
+            style={{
+              left: `${pct}%`,
+              transform: 'translate(-50%, -50%)',
+              borderColor: activeIdx <= 1 ? '#22c55e' : activeIdx === 2 ? '#facc15' : '#ef4444',
+            }}
+          />
+        )}
+      </div>
+      <span className={`text-[10px] font-semibold tabular-nums ${loading ? 'text-slate-400' : error ? 'text-red-400' : valueColor}`}>
+        {loading ? '…' : error ? 'err' : vix != null ? vix.toFixed(1) : '--'}
+      </span>
+    </div>
   );
 }
 

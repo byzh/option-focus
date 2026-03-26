@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "git diff --name-only HEAD 2>/dev/null | grep -q '^src/' && echo '[Hook] src/ changed — tests will run via git pre-commit hook before next commit' || true",
+            "command": "git diff --name-only HEAD 2>/dev/null | grep -q '^src/' && echo '{\"systemMessage\": \"src/ 有未提交改动，commit 前会自动跑测试\"}' || true",
             "timeout": 60
           }
         ]

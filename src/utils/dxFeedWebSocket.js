@@ -14,6 +14,24 @@ const EVENT_CONFIGS = {
       data: { delta: Number(values[i + 1]), vol: Number(values[i + 2]) },
     }),
   },
+  Quote: {
+    fields: ['eventSymbol', 'bidPrice', 'askPrice'],
+    stride: 3,
+    parseRow: (values, i) => {
+      const bid = Number(values[i + 1]);
+      const ask = Number(values[i + 2]);
+      const mid = (bid + ask) / 2;
+      return { sym: values[i], data: isFinite(mid) && mid > 0 ? mid : null };
+    },
+  },
+  Trade: {
+    fields: ['eventSymbol', 'price'],
+    stride: 2,
+    parseRow: (values, i) => {
+      const v = Number(values[i + 1]);
+      return { sym: values[i], data: isFinite(v) && v > 0 ? v : null };
+    },
+  },
 };
 
 /**
