@@ -10,6 +10,18 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const p=(JSON.parse(d).tool_input||{}).file_path||'';if(/\\.(jsx?|tsx?)$/.test(p)){require('child_process').execSync('npx eslint --fix \\\"'+p+'\\\"',{stdio:'inherit',cwd:'c:/Users/ZHU/source/repos/option-focus'})}});\" 2>/dev/null || true",
+            "timeout": 30
+          }
+        ]
+      }
     ]
   }
 }

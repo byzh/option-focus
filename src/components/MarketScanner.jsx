@@ -16,6 +16,15 @@ import { callTastytradeApi } from '../utils/apiClient';
 
 const APP_ID = 'option-focus-v2';
 
+/** Returns true if dateStr (YYYY-MM-DD) is the 3rd Friday of its month */
+function isMonthlyExpiration(dateStr) {
+  if (!dateStr) return false;
+  const d = new Date(dateStr + 'T12:00:00');
+  if (d.getDay() !== 5) return false; // not a Friday
+  const day = d.getDate();
+  return day >= 15 && day <= 21;
+}
+
 export default function MarketScanner({ user, db }) {
   // Symbol pool
   const [symbols, setSymbols] = useState(DEFAULT_SYMBOLS);
@@ -542,6 +551,7 @@ function OptionChainDetail({
           const date = exp['expiration-date'] || exp.expirationDate || '';
           const dte = exp.dte;
           const active = i === selectedExpIdx;
+          const monthly = isMonthlyExpiration(date);
           return (
             <button
               key={i}
@@ -549,10 +559,12 @@ function OptionChainDetail({
               className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-colors ${
                 active
                   ? 'bg-blue-500 text-white'
+                  : monthly
+                  ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60'
                   : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
               }`}
             >
-              {date} <span className={active ? 'text-blue-200' : 'text-slate-400'}>({dte}d)</span>
+              {date} <span className={active ? 'text-blue-200' : monthly ? 'text-amber-500 dark:text-amber-400' : 'text-slate-400'}>({dte}d)</span>
             </button>
           );
         })}
