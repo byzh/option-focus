@@ -115,9 +115,6 @@ function AddEditModal({ formData, setFormData, onSubmit, onClose, activeTab, pos
                 label={isStock ? '股数 (Shares)' : '张数 (Contracts)'}
                 type="number" step="1" value={formData.contracts} onChange={e => update('contracts', e.target.value)} required
               />
-              {!isStock && (
-                <Input label="展期净利 (Roll Credit)" type="number" value={formData.rollCredit} onChange={e => update('rollCredit', e.target.value)} />
-              )}
             </div>
           )}
 
