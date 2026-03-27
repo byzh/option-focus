@@ -261,7 +261,7 @@ export default function MarketScanner({ user, db }) {
               <RotateCw size={11} />
             </button>
           )}
-          <VixBar vix={vix} loading={vixLoading} error={vixError} />
+          <span className="hidden sm:contents"><VixBar vix={vix} loading={vixLoading} error={vixError} /></span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -282,6 +282,11 @@ export default function MarketScanner({ user, db }) {
             <Settings2 size={16} />
           </button>
         </div>
+      </div>
+
+      {/* VIX Bar — mobile only */}
+      <div className="sm:hidden">
+        <VixBar vix={vix} loading={vixLoading} error={vixError} />
       </div>
 
       {/* Symbol Config */}
