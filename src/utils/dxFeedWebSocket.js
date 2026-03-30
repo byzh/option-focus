@@ -1,7 +1,7 @@
 import { callTastytradeApi } from './apiClient';
 
 // Module-level token cache — avoids a REST round-trip on every connectDxFeed call
-let _tokenCache = null; // { uid, token, wsUrl, expiresAt }
+let _tokenCache = null; // { token, wsUrl, expiresAt }
 const TOKEN_TTL_MS = 50 * 60 * 1000; // 50 minutes
 
 async function getQuoteToken(user) {
@@ -17,9 +17,6 @@ async function getQuoteToken(user) {
   };
   return _tokenCache;
 }
-
-// Module-level persistent connection — reused across connectDxFeed calls to avoid re-handshaking
-let _conn = null; // { ws: WebSocket, uid, authorized: bool, channelOpen: bool }
 
 const EVENT_CONFIGS = {
   Summary: {
@@ -57,11 +54,10 @@ const EVENT_CONFIGS = {
 
 /**
  * Connect to dxFeed WebSocket, subscribe to events, and collect data.
- * Reuses a persistent module-level connection when available to skip TCP+auth handshake.
  *
  * @param {object} user - authenticated user (for token fetch)
  * @param {Array<{type: string, symbol: string}>} subscriptions
- * @param {'Summary'|'Greeks'|'Quote'|'Trade'} eventType
+ * @param {'Summary'|'Greeks'} eventType
  * @param {object} [opts]
  * @param {React.MutableRefObject} [opts.wsRef]         - stores WS instance for external cancellation
  * @param {React.MutableRefObject} [opts.timeoutRef]    - stores collect timer for external cancellation
@@ -84,14 +80,13 @@ export function connectDxFeed(user, subscriptions, eventType, opts = {}) {
       const { token, wsUrl } = await getQuoteToken(user);
       if (!token) throw new Error('未获取到 dxFeed token');
 
+      const ws = new WebSocket(wsUrl);
+      if (wsRef) wsRef.current = ws;
       const collected = new Map();
       let collectTimer = null;
 
       const hardTimeout = setTimeout(() => {
-        if (_conn?.ws.readyState === WebSocket.OPEN) {
-          _conn.ws.close();
-          _conn = null;
-        }
+        if (ws.readyState === WebSocket.OPEN) ws.close();
         if (collected.size > 0) resolve(collected);
         else reject(new Error('连接超时，未收到数据'));
       }, hardTimeoutMs);
@@ -100,38 +95,19 @@ export function connectDxFeed(user, subscriptions, eventType, opts = {}) {
         clearTimeout(hardTimeout);
         clearTimeout(collectTimer);
         if (timeoutRef?.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+        if (ws.readyState === WebSocket.OPEN) ws.close();
         if (wsRef) wsRef.current = null;
-        // Keep WS alive — install a minimal idle handler (KEEPALIVE only)
-        if (_conn?.ws.readyState === WebSocket.OPEN) {
-          const ws = _conn.ws;
-          ws.onmessage = (event) => {
-            let msg;
-            try { msg = JSON.parse(event.data); } catch { return; }
-            if (msg.type === 'KEEPALIVE') {
-              ws.send(JSON.stringify({ type: 'KEEPALIVE', channel: msg.channel }));
-            }
-          };
-        }
         resolve(collected);
       };
 
-      const sendSubscription = (ws) => {
+      ws.onopen = () => {
         ws.send(JSON.stringify({
-          type: 'FEED_SETUP', channel: 1,
-          acceptAggregationPeriod: 0, acceptDataFormat: 'COMPACT',
-          acceptEventFields: { [eventType]: config.fields },
+          type: 'SETUP', channel: 0, version: '0.1',
+          keepaliveTimeout: 60, acceptKeepaliveTimeout: 60,
         }));
-        ws.send(JSON.stringify({
-          type: 'FEED_SUBSCRIPTION', channel: 1,
-          reset: true, add: subscriptions,
-        }));
-        collectTimer = setTimeout(finalize, collectTimeoutMs);
-        if (timeoutRef) timeoutRef.current = collectTimer;
       };
 
-      // Shared message handler — covers both fresh and reused connection paths
-      // isReuse=true skips AUTH_STATE handling (already authorized, unexpected state = ignore)
-      const makeMessageHandler = (ws, isReuse = false) => (event) => {
+      ws.onmessage = (event) => {
         let msg;
         try { msg = JSON.parse(event.data); } catch { return; }
 
@@ -141,26 +117,27 @@ export function connectDxFeed(user, subscriptions, eventType, opts = {}) {
             break;
 
           case 'AUTH_STATE':
-            if (isReuse) break; // already authorized — ignore unexpected AUTH_STATE on reused conn
             if (msg.state === 'AUTHORIZED') {
-              _conn.authorized = true;
               ws.send(JSON.stringify({
                 type: 'CHANNEL_REQUEST', channel: 1,
                 service: 'FEED', parameters: { contract: 'AUTO' },
               }));
-            } else {
-              // Auth failed — clear caches and reject so caller can retry with fresh token
-              clearTimeout(hardTimeout);
-              _tokenCache = null;
-              _conn = null;
-              reject(new Error('dxFeed 认证失败'));
             }
             break;
 
           case 'CHANNEL_OPENED':
             if (msg.channel === 1) {
-              _conn.channelOpen = true;
-              sendSubscription(ws);
+              ws.send(JSON.stringify({
+                type: 'FEED_SETUP', channel: 1,
+                acceptAggregationPeriod: 0, acceptDataFormat: 'COMPACT',
+                acceptEventFields: { [eventType]: config.fields },
+              }));
+              ws.send(JSON.stringify({
+                type: 'FEED_SUBSCRIPTION', channel: 1,
+                reset: true, add: subscriptions,
+              }));
+              collectTimer = setTimeout(finalize, collectTimeoutMs);
+              if (timeoutRef) timeoutRef.current = collectTimer;
             }
             break;
 
@@ -186,55 +163,18 @@ export function connectDxFeed(user, subscriptions, eventType, opts = {}) {
         }
       };
 
-      const onError = () => {
+      ws.onerror = () => {
         clearTimeout(hardTimeout);
-        _conn = null;
+        if (wsRef) wsRef.current = null;
         reject(new Error('dxFeed WebSocket 连接错误'));
       };
 
-      const onClose = () => {
+      ws.onclose = () => {
         clearTimeout(hardTimeout);
         if (timeoutRef?.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
-        _conn = null;
+        if (wsRef) wsRef.current = null;
         resolve(collected);
       };
-
-      // ── Reuse existing authorized connection ──────────────────────────────
-      if (_conn?.ws.readyState === WebSocket.OPEN && _conn.authorized) {
-        const ws = _conn.ws;
-        if (wsRef) wsRef.current = ws;
-        ws.onmessage = makeMessageHandler(ws, true); // isReuse=true
-        ws.onerror = onError;
-        ws.onclose = onClose;
-
-        if (_conn.channelOpen) {
-          // Best case: skip everything up to subscription (saves 4 RTTs on mobile)
-          sendSubscription(ws);
-        } else {
-          ws.send(JSON.stringify({
-            type: 'CHANNEL_REQUEST', channel: 1,
-            service: 'FEED', parameters: { contract: 'AUTO' },
-          }));
-        }
-        return;
-      }
-
-      // ── Fresh connection ──────────────────────────────────────────────────
-      _conn = { ws: null, uid: user.uid, authorized: false, channelOpen: false };
-      const ws = new WebSocket(wsUrl);
-      _conn.ws = ws;
-      if (wsRef) wsRef.current = ws;
-
-      ws.onopen = () => {
-        ws.send(JSON.stringify({
-          type: 'SETUP', channel: 0, version: '0.1',
-          keepaliveTimeout: 60, acceptKeepaliveTimeout: 60,
-        }));
-      };
-
-      ws.onmessage = makeMessageHandler(ws);
-      ws.onerror = onError;
-      ws.onclose = onClose;
 
     } catch (e) {
       reject(e);
