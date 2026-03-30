@@ -1,5 +1,23 @@
 import { callTastytradeApi } from './apiClient';
 
+// Module-level token cache — avoids a REST round-trip on every connectDxFeed call
+let _tokenCache = null; // { token, wsUrl, expiresAt }
+const TOKEN_TTL_MS = 50 * 60 * 1000; // 50 minutes
+
+async function getQuoteToken(user) {
+  const now = Date.now();
+  if (_tokenCache && _tokenCache.uid === user.uid && now < _tokenCache.expiresAt) return _tokenCache;
+  const resp = await callTastytradeApi(user, '/api-quote-tokens');
+  const data = resp.data || resp;
+  _tokenCache = {
+    uid: user.uid,
+    token: data.token,
+    wsUrl: data['dxlink-url'] || 'wss://tasty-openapi-ws.dxfeed.com/realtime',
+    expiresAt: now + TOKEN_TTL_MS,
+  };
+  return _tokenCache;
+}
+
 const EVENT_CONFIGS = {
   Summary: {
     fields: ['eventSymbol', 'openInterest'],
@@ -45,6 +63,7 @@ const EVENT_CONFIGS = {
  * @param {React.MutableRefObject} [opts.timeoutRef]    - stores collect timer for external cancellation
  * @param {number} [opts.hardTimeoutMs=20000]
  * @param {number} [opts.collectTimeoutMs=8000]
+ * @param {number} [opts.expectedCount]           - resolve immediately once this many symbols are collected
  * @returns {Promise<Map<string, any>>}
  *   Summary: Map<streamerSym, openInterest: number>
  *   Greeks:  Map<streamerSym, { delta: number, vol: number }>
@@ -52,21 +71,19 @@ const EVENT_CONFIGS = {
  *   Rejects on onerror or hard-timeout with no data.
  */
 export function connectDxFeed(user, subscriptions, eventType, opts = {}) {
-  const { wsRef, timeoutRef, hardTimeoutMs = 20000, collectTimeoutMs = 8000 } = opts;
+  const { wsRef, timeoutRef, hardTimeoutMs = 20000, collectTimeoutMs = 8000, expectedCount } = opts;
   const config = EVENT_CONFIGS[eventType];
   if (!config) return Promise.reject(new Error(`Unknown eventType: ${eventType}`));
 
   return new Promise(async (resolve, reject) => {
     try {
-      const tokenResponse = await callTastytradeApi(user, '/api-quote-tokens');
-      const tokenData = tokenResponse.data || tokenResponse;
-      const token = tokenData.token;
-      const wsUrl = tokenData['dxlink-url'] || 'wss://tasty-openapi-ws.dxfeed.com/realtime';
+      const { token, wsUrl } = await getQuoteToken(user);
       if (!token) throw new Error('未获取到 dxFeed token');
 
       const ws = new WebSocket(wsUrl);
       if (wsRef) wsRef.current = ws;
       const collected = new Map();
+      let collectTimer = null;
 
       const hardTimeout = setTimeout(() => {
         if (ws.readyState === WebSocket.OPEN) ws.close();
@@ -76,6 +93,7 @@ export function connectDxFeed(user, subscriptions, eventType, opts = {}) {
 
       const finalize = () => {
         clearTimeout(hardTimeout);
+        clearTimeout(collectTimer);
         if (timeoutRef?.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
         if (ws.readyState === WebSocket.OPEN) ws.close();
         if (wsRef) wsRef.current = null;
@@ -118,7 +136,7 @@ export function connectDxFeed(user, subscriptions, eventType, opts = {}) {
                 type: 'FEED_SUBSCRIPTION', channel: 1,
                 reset: true, add: subscriptions,
               }));
-              const collectTimer = setTimeout(finalize, collectTimeoutMs);
+              collectTimer = setTimeout(finalize, collectTimeoutMs);
               if (timeoutRef) timeoutRef.current = collectTimer;
             }
             break;
@@ -133,6 +151,7 @@ export function connectDxFeed(user, subscriptions, eventType, opts = {}) {
               const { sym, data: rowData } = config.parseRow(values, i);
               if (sym) collected.set(sym, rowData);
             }
+            if (expectedCount != null && collected.size >= expectedCount) finalize();
             break;
           }
 
