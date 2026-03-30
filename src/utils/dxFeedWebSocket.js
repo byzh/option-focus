@@ -130,7 +130,8 @@ export function connectDxFeed(user, subscriptions, eventType, opts = {}) {
       };
 
       // Shared message handler — covers both fresh and reused connection paths
-      const makeMessageHandler = (ws) => (event) => {
+      // isReuse=true skips AUTH_STATE handling (already authorized, unexpected state = ignore)
+      const makeMessageHandler = (ws, isReuse = false) => (event) => {
         let msg;
         try { msg = JSON.parse(event.data); } catch { return; }
 
@@ -140,6 +141,7 @@ export function connectDxFeed(user, subscriptions, eventType, opts = {}) {
             break;
 
           case 'AUTH_STATE':
+            if (isReuse) break; // already authorized — ignore unexpected AUTH_STATE on reused conn
             if (msg.state === 'AUTHORIZED') {
               _conn.authorized = true;
               ws.send(JSON.stringify({
@@ -147,7 +149,9 @@ export function connectDxFeed(user, subscriptions, eventType, opts = {}) {
                 service: 'FEED', parameters: { contract: 'AUTO' },
               }));
             } else {
+              // Auth failed — clear caches and reject so caller can retry with fresh token
               clearTimeout(hardTimeout);
+              _tokenCache = null;
               _conn = null;
               reject(new Error('dxFeed 认证失败'));
             }
@@ -199,7 +203,7 @@ export function connectDxFeed(user, subscriptions, eventType, opts = {}) {
       if (_conn?.ws.readyState === WebSocket.OPEN && _conn.authorized) {
         const ws = _conn.ws;
         if (wsRef) wsRef.current = ws;
-        ws.onmessage = makeMessageHandler(ws);
+        ws.onmessage = makeMessageHandler(ws, true); // isReuse=true
         ws.onerror = onError;
         ws.onclose = onClose;
 

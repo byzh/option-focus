@@ -26,21 +26,34 @@ export function useVix({ user }) {
 
       // Once we know which event type works, skip the other one
       const eventTypes = _workingEventType ? [_workingEventType] : ['Quote', 'Trade'];
-      for (const eventType of eventTypes) {
-        const result = await connectDxFeed(
-          user,
-          [{ type: eventType, symbol: _streamerSymbol }],
-          eventType,
-          { hardTimeoutMs: 10000, collectTimeoutMs: 5000, expectedCount: 1 },
-        );
-        const value = result.get(_streamerSymbol);
-        if (value != null && value > 0) {
-          _workingEventType = eventType;
-          setVix(value);
-          return;
+      let succeeded = false;
+      for (let attempt = 0; attempt < 2 && !succeeded; attempt++) {
+        for (const eventType of eventTypes) {
+          try {
+            const result = await connectDxFeed(
+              user,
+              [{ type: eventType, symbol: _streamerSymbol }],
+              eventType,
+              { hardTimeoutMs: 10000, collectTimeoutMs: 5000, expectedCount: 1 },
+            );
+            const value = result.get(_streamerSymbol);
+            if (value != null && value > 0) {
+              _workingEventType = eventType;
+              setVix(value);
+              succeeded = true;
+              break;
+            }
+          } catch (e) {
+            if (e.message === 'dxFeed 认证失败' && attempt === 0) {
+              // Token was stale — caches already cleared by connectDxFeed, retry once
+              _workingEventType = null;
+              break;
+            }
+            throw e;
+          }
         }
       }
-      setError('无法获取 VIX 数据');
+      if (!succeeded) setError('无法获取 VIX 数据');
     } catch (e) {
       setError(e.message);
     } finally {
