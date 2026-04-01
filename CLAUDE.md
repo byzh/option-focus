@@ -62,6 +62,13 @@ await setDoc(ref, { exps: { [expDate]: rr } }, { merge: true });
 
 **编程必须遵循 SOLID 原则。** 单一职责、开闭、里氏替换、接口隔离、依赖倒置——新增或修改代码时主动识别违反 SOLID 的设计并提出改进。
 
+**编程必须保证网络安全。** 每次新增或修改代码时必须主动检查以下项目：
+- 禁止将 token、session、API key、uid 等敏感数据暴露到客户端日志（console.log）或 URL 参数中
+- 所有外部数据（API 响应、WebSocket 消息）在使用前必须做类型/边界校验，不得盲目信任
+- 禁止使用 `eval()`、`innerHTML`、`dangerouslySetInnerHTML`（除非有明确说明）
+- Firestore 规则变更必须同时更新 test 和 prod，不得留宽松规则上线
+- 不得在代码中硬编码任何凭证或密钥
+
 **commit 和 push 之前必须获得用户明确确认。** 不得在用户确认前自动执行 git commit 或 git push，哪怕任务看起来已完成。
 
 ## 回复偏好
