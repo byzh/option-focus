@@ -135,10 +135,32 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
       if (firstRoll.oldExpiration) initialExpiration = firstRoll.oldExpiration;
     }
 
+    // If 增持 has occurred, recover original entry price from the oldest 增持 entry
+    const additionEntries = history.filter(h => h.action === '增持');
+    let originalEntryPrice = item.entryPrice;
+    let originalContracts = parseInt(item.contracts);
+    if (additionEntries.length > 0) {
+      const oldest = additionEntries[additionEntries.length - 1];
+      if (oldest.prevEntryPrice != null) {
+        originalEntryPrice = oldest.prevEntryPrice;
+        originalContracts = oldest.prevContracts ?? (parseInt(item.contracts) - oldest.contracts);
+      } else {
+        // Back-calculate from avgAfter for legacy records without prevEntryPrice
+        const totalC = parseInt(item.contracts);
+        const addC = parseInt(oldest.contracts) || 0;
+        const prevC = totalC - addC;
+        originalContracts = prevC > 0 ? prevC : 1;
+        originalEntryPrice = prevC > 0
+          ? ((oldest.avgAfter ?? item.entryPrice) * totalC - oldest.price * addC) / prevC
+          : item.entryPrice;
+      }
+    }
+
     history.push({
       isInitial: true,
       date: item.dateOpened || 'Initial',
-      price: item.entryPrice,
+      price: originalEntryPrice,
+      contracts: originalContracts,
       initialStrike,
       initialExpiration
     });
@@ -168,7 +190,7 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
               )}
             </div>
             <div className="text-sm text-slate-500 dark:text-slate-400">
-              初始: ${parseFloat(item.entryPrice).toFixed(2)} × {contracts}
+              {(item.history || []).some(h => h.action === '增持') ? '增持' : '初始'}: ${parseFloat(item.entryPrice).toFixed(2)} × {contracts}
               {parseFloat(item.rollCredit) !== 0 && <span className={item.rollCredit > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}> 展期: {item.rollCredit > 0 ? '+' : '-'}${Math.abs(parseFloat(item.rollCredit)).toFixed(2)}</span>}
             </div>
             {!isClosed && !isExpired && (
@@ -230,7 +252,7 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
               let label = "", val = 0, isCredit = false;
               if (h.isInitial) {
                 label = `初始开仓 $${h.initialStrike} (${h.initialExpiration}) ${item.type}`;
-                if (item.direction === 'SELL') { val = -Math.abs(item.entryPrice); isCredit = true; } else { val = Math.abs(item.entryPrice); isCredit = false; }
+                if (item.direction === 'SELL') { val = -Math.abs(h.price); isCredit = true; } else { val = Math.abs(h.price); isCredit = false; }
               } else if (h.action === 'CLOSE') {
                 label = '平仓 (Close)';
                 val = item.direction === 'SELL' ? Math.abs(h.closePrice) : -Math.abs(h.closePrice); isCredit = val < 0;
@@ -242,6 +264,10 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
               } else if (h.action === 'ROLL') {
                 label = `展期 → ${h.newExpiration} $${h.newStrike}`;
                 val = h.rollPrice; isCredit = val < 0;
+              } else if (h.action === '增持') {
+                label = `增持 ${h.contracts} 张 均价→$${h.avgAfter}`;
+                val = item.direction === 'SELL' ? -Math.abs(h.price) : Math.abs(h.price);
+                isCredit = item.direction === 'SELL';
               }
               return (
                 <div key={idx} className="flex items-center py-1 border-b border-dashed border-slate-100 dark:border-slate-800 last:border-0 min-w-0">

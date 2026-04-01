@@ -256,9 +256,37 @@ export default function App() {
     setIsSaving(true);
     try {
       const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Request timed out.")), 10000));
-      const op = formData.id
-        ? updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, colName, formData.id), newItem)
-        : addDoc(collection(db, 'artifacts', APP_ID, 'users', user.uid, colName), newItem);
+
+      // Auto-merge: new option position that duplicates an existing open one → 增持
+      const isNewOptionPosition = !formData.id && activeTab === 'portfolio' && newItem.assetType !== 'STOCK';
+      const duplicate = isNewOptionPosition && positions.find(p =>
+        p.status === 'OPEN' &&
+        p.assetType !== 'STOCK' &&
+        p.ticker === newItem.ticker &&
+        p.type === newItem.type &&
+        p.direction === newItem.direction &&
+        parseFloat(p.strike) === parseFloat(newItem.strike) &&
+        p.expiration === newItem.expiration
+      );
+
+      let op;
+      if (duplicate) {
+        const oldContracts = parseInt(duplicate.contracts) || 1;
+        const addContracts = parseInt(newItem.contracts) || 1;
+        const totalContracts = oldContracts + addContracts;
+        const newAvgPrice = ((parseFloat(duplicate.entryPrice) || 0) * oldContracts + (parseFloat(newItem.entryPrice) || 0) * addContracts) / totalContracts;
+        const mergeEntry = { date: today, action: '增持', contracts: addContracts, price: parseFloat(newItem.entryPrice) || 0, avgAfter: parseFloat(newAvgPrice.toFixed(4)), prevEntryPrice: parseFloat(duplicate.entryPrice) || 0, prevContracts: oldContracts };
+        op = updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', duplicate.id), {
+          contracts: totalContracts,
+          entryPrice: parseFloat(newAvgPrice.toFixed(4)),
+          history: [mergeEntry, ...(duplicate.history || [])],
+        });
+      } else {
+        op = formData.id
+          ? updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, colName, formData.id), newItem)
+          : addDoc(collection(db, 'artifacts', APP_ID, 'users', user.uid, colName), newItem);
+      }
+
       await Promise.race([op, timeout]);
       closeModal();
     } catch (e) {
