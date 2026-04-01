@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { calcNetBasis, calcFinalPnL, calcStockNetBasis, calcStockPnL, calcStockBuy, calcStockSell, calcStockTotalRealizedPnL } from './calc';
 import { detectCC, detectPMCC } from './utils/strategyDetect';
+import { selectDeltaPositions } from './utils/deltaPositions';
 import { useLeapsDelta } from './hooks/useLeapsDelta';
 import {
   Plus, TrendingUp, Settings, Loader2,
@@ -31,6 +32,7 @@ import StockTradeModal from './components/StockTradeModal';
 import MonitorTab from './components/MonitorTab';
 import StrategyTab from './components/StrategyTab';
 import { useFirestorePositions } from './hooks/useFirestorePositions';
+
 
 const EMPTY_FORM = () => ({
   id: null, ticker: '', assetType: 'OPTION', type: 'CALL', direction: 'BUY', actionCategory: 'OPEN',
@@ -82,11 +84,11 @@ export default function App() {
 
   const { deltaMap, loading: deltaLoading, fetchDeltas } = useLeapsDelta({ user });
 
-  // Auto-fetch deltas for all open LEAPS whenever positions change
+  // Auto-fetch deltas for PUT options and LEAPS (BUY CALL DTE > 90) whenever positions change
   useEffect(() => {
     if (!user) return;
-    const leapsPositions = detectPMCC(positions).map(g => g.leapsPos);
-    if (leapsPositions.length > 0) fetchDeltas(leapsPositions);
+    const targets = selectDeltaPositions(positions);
+    if (targets.length > 0) fetchDeltas(targets);
   }, [positions, user]);
 
   useEffect(() => { window.scrollTo(0, 0); }, [activeTab]);

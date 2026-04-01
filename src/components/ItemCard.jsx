@@ -198,6 +198,15 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
                 保本价: <span className="font-mono text-slate-600 dark:text-slate-300">${calcBreakEven(item.type, item.strike, item.entryPrice, item.rollCredit).toFixed(2)}</span>
               </div>
             )}
+            {!isClosed && !isExpired && item.type === 'PUT' && delta != null && (() => {
+              const high = Math.abs(delta) > 0.5;
+              return (
+                <div className={`text-xs mt-0.5 flex items-center gap-1 ${high ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                  {high ? <AlertTriangle size={11} /> : <CheckCircle2 size={11} />}
+                  <span>Δ{delta.toFixed(2)}{high ? ' 偏高 (建议 ≤0.50)' : ''}</span>
+                </div>
+              );
+            })()}
             {strategyTag === 'PMCC' && item.direction === 'BUY' && !isClosed && !isExpired && (() => {
               const health = assessLeapsHealth(daysUntilExpiration, delta);
               const styles = {
