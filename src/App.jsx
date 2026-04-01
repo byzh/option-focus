@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 
 import { app, auth, db, functions, initError, APP_ID } from './firebase/firebaseInit';
+import { registerFcm, onForegroundMessage } from './firebase/fcm';
 import { getLocalTodayString, isExpired, calculateDTE } from './utils/dateUtils';
 
 import Card from './components/ui/Card';
@@ -132,7 +133,21 @@ export default function App() {
   // Auth
   useEffect(() => {
     if (!auth) return;
-    return onAuthStateChanged(auth, (u) => { setUser(u); if (u) setIsLoggingIn(false); });
+    return onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      if (u) {
+        setIsLoggingIn(false);
+        registerFcm(app, db, u.uid).catch(e => console.warn('FCM registration failed:', e));
+      }
+    });
+  }, []);
+
+  // Foreground FCM messages → show as MessageModal
+  useEffect(() => {
+    if (!app) return;
+    return onForegroundMessage(app, ({ title, body }) => {
+      setMessageModal({ isOpen: true, title, content: body, type: 'info' });
+    });
   }, []);
 
   const handleGoogleLogin = async () => {

@@ -1,6 +1,7 @@
 // Firebase Cloud Functions for Tastytrade OAuth + API Proxy
 // access_token never leaves the server - all API calls go through proxy
 const { onRequest } = require('firebase-functions/v2/https');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore } = require('firebase-admin/firestore');
@@ -313,5 +314,21 @@ exports.tastytradeApiProxy = onRequest(
         });
       }
     });
+  }
+);
+
+// ============================================================
+// Cloud Function 3: Daily delta alert — 9:30 AM ET on weekdays
+// ============================================================
+exports.dailyDeltaAlert = onSchedule(
+  {
+    schedule: '30 9 * * 1-5',
+    timeZone: 'America/New_York',
+    region: 'us-central1',
+    secrets: [clientId, clientSecret],
+  },
+  async () => {
+    const { runDeltaAlertNotification } = require('./deltaAlertNotification');
+    await runDeltaAlertNotification();
   }
 );
