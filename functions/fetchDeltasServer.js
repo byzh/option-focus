@@ -180,4 +180,87 @@ async function fetchDeltasForPositions(accessToken, positions) {
   return result;
 }
 
-module.exports = { fetchDeltasForPositions };
+/**
+ * Fetch VIX mid-price via dxFeed Quote event.
+ * @param {string} accessToken - valid TastyTrade access token
+ * @returns {Promise<number|null>} VIX value or null on failure
+ */
+async function fetchVixValue(accessToken) {
+  try {
+    const instRes = await fetch(`${TASTYTRADE_API}/instruments/equities/VIX`, {
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'User-Agent': 'OptionFocus/1.0' },
+    });
+    const instData = await instRes.json();
+    const streamerSymbol = instData?.data?.['streamer-symbol'] ?? '$VIX.X';
+
+    const dxFeedAuth = await getDxFeedToken(accessToken);
+    const subscriptions = [{ type: 'Quote', symbol: streamerSymbol }];
+
+    return await new Promise((resolve) => {
+      const ws = new WebSocket(dxFeedAuth.wsUrl);
+      let resolved = false;
+
+      const done = (value) => {
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(hardTimer);
+        if (ws.readyState === WebSocket.OPEN) ws.close();
+        resolve(value);
+      };
+
+      const hardTimer = setTimeout(() => done(null), 10000);
+
+      ws.on('open', () => {
+        ws.send(JSON.stringify({ type: 'SETUP', channel: 0, version: '0.1', keepaliveTimeout: 60, acceptKeepaliveTimeout: 60 }));
+      });
+
+      ws.on('message', (raw) => {
+        let msg;
+        try { msg = JSON.parse(raw); } catch { return; }
+        switch (msg.type) {
+          case 'SETUP':
+            ws.send(JSON.stringify({ type: 'AUTH', channel: 0, token: dxFeedAuth.token }));
+            break;
+          case 'AUTH_STATE':
+            if (msg.state === 'AUTHORIZED') {
+              ws.send(JSON.stringify({ type: 'CHANNEL_REQUEST', channel: 1, service: 'FEED', parameters: { contract: 'AUTO' } }));
+            }
+            break;
+          case 'CHANNEL_OPENED':
+            if (msg.channel === 1) {
+              ws.send(JSON.stringify({
+                type: 'FEED_SETUP', channel: 1,
+                acceptAggregationPeriod: 0, acceptDataFormat: 'COMPACT',
+                acceptEventFields: { Quote: ['eventSymbol', 'bidPrice', 'askPrice'] },
+              }));
+              ws.send(JSON.stringify({ type: 'FEED_SUBSCRIPTION', channel: 1, reset: true, add: subscriptions }));
+            }
+            break;
+          case 'FEED_DATA': {
+            if (msg.channel !== 1) break;
+            const data = msg.data;
+            if (!Array.isArray(data) || data.length < 2 || !Array.isArray(data[1])) break;
+            const values = data[1];
+            for (let i = 0; i + 2 < values.length; i += 3) {
+              const bid = Number(values[i + 1]);
+              const ask = Number(values[i + 2]);
+              const mid = (bid + ask) / 2;
+              if (isFinite(mid) && mid > 0) { done(mid); return; }
+            }
+            break;
+          }
+          case 'KEEPALIVE':
+            ws.send(JSON.stringify({ type: 'KEEPALIVE', channel: msg.channel }));
+            break;
+        }
+      });
+
+      ws.on('error', () => done(null));
+      ws.on('close', () => done(null));
+    });
+  } catch {
+    return null;
+  }
+}
+
+module.exports = { fetchDeltasForPositions, fetchVixValue };

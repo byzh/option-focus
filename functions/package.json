@@ -2,7 +2,8 @@
   "name": "option-focus-functions",
   "description": "Firebase Cloud Functions for option-focus",
   "scripts": {
-    "deploy": "firebase deploy --only functions"
+    "deploy": "firebase deploy --only functions",
+    "test": "jest"
   },
   "engines": {
     "node": "20"
@@ -14,5 +15,8 @@
     "firebase-functions": "^5.0.0",
     "ws": "^8.18.0"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "jest": "^30.3.0"
+  }
 }

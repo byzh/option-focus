@@ -3,38 +3,31 @@
 const { getFirestore } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 const { isMarketClosed } = require('./marketHolidays');
-const { fetchDeltasForPositions } = require('./fetchDeltasServer');
+const { fetchDeltasForPositions, fetchVixValue } = require('./fetchDeltasServer');
+const {
+  collectPutWarnings,
+  collectLeapsWarnings,
+  collectCCWarnings,
+  collectPMCCWarnings,
+  buildNotificationBody,
+  calculateDTE,
+} = require('./alertHelpers');
 
 const APP_ID = 'option-focus-v2';
-const DELTA_WARN_THRESHOLD = 0.5;
 
 /**
- * Send an FCM data-only message to a single device token.
- * Uses data payload so the SW's raw push handler works without Firebase in SW.
+ * Send an FCM message to a single device token.
  */
 async function sendNotification(fcmToken, title, body) {
   await getMessaging().send({
     token: fcmToken,
     notification: { title, body },
-    // Also include data for foreground handler
     data: { title, body },
   });
 }
 
 /**
- * Build notification body from positions with high delta.
- * @param {Array<{ ticker, strike, expiration, delta }>} alerts
- */
-function buildAlertBody(alerts) {
-  if (!alerts.length) return '所有 PUT 持仓 Delta 正常';
-  const lines = alerts.map(a =>
-    `${a.ticker} $${a.strike} (${a.expiration}) Δ${a.delta.toFixed(2)}`
-  );
-  return lines.join('\n');
-}
-
-/**
- * Process one user: fetch positions, get deltas, send notification.
+ * Process one user: fetch positions, compute all warnings, send notification.
  * Always sends a notification — success recap or error message.
  */
 async function processUser(uid, fcmToken, accessToken) {
@@ -46,26 +39,35 @@ async function processUser(uid, fcmToken, accessToken) {
     .where('status', '==', 'OPEN')
     .get();
 
-  const putPositions = posSnap.docs
-    .map(d => ({ id: d.id, ...d.data() }))
-    .filter(p => p.assetType !== 'STOCK' && p.type === 'PUT' && p.expiration >= new Date().toISOString().slice(0, 10));
+  const today = new Date().toISOString().slice(0, 10);
+  const allPositions = posSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-  if (!putPositions.length) {
-    await sendNotification(fcmToken, '每日持仓简报', '暂无开仓 PUT 持仓');
-    return;
-  }
+  // Positions needing delta fetch: PUTs + LEAPS
+  const putPositions = allPositions.filter(p =>
+    p.assetType !== 'STOCK' && p.type === 'PUT' && p.expiration >= today
+  );
+  const leapsPositions = allPositions.filter(p =>
+    p.assetType !== 'STOCK' && p.type === 'CALL' && p.direction === 'BUY' &&
+    p.status !== 'CLOSED' && (calculateDTE(p.expiration) ?? 0) > 90
+  );
 
-  const deltaMap = await fetchDeltasForPositions(accessToken, putPositions);
+  // Fetch deltas for PUTs and LEAPS in one batch (deduplicated by id)
+  const deltaTargets = [...new Map([...leapsPositions, ...putPositions].map(p => [p.id, p])).values()];
+  const deltaMap = deltaTargets.length ? await fetchDeltasForPositions(accessToken, deltaTargets) : new Map();
 
-  const alerts = putPositions
-    .filter(p => {
-      const delta = deltaMap.get(p.id);
-      return delta != null && Math.abs(delta) > DELTA_WARN_THRESHOLD;
-    })
-    .map(p => ({ ticker: p.ticker, strike: p.strike, expiration: p.expiration, delta: deltaMap.get(p.id) }));
+  // Fetch VIX (non-blocking)
+  const vix = await fetchVixValue(accessToken);
 
-  const title = alerts.length ? `⚠️ Delta 警告 (${alerts.length} 个持仓)` : '每日持仓简报';
-  const body = buildAlertBody(alerts);
+  // Collect all warnings
+  const warnings = [
+    ...collectPutWarnings(putPositions, deltaMap),
+    ...collectLeapsWarnings(leapsPositions, deltaMap),
+    ...collectCCWarnings(allPositions),
+    ...collectPMCCWarnings(allPositions),
+  ];
+
+  const title = warnings.length ? `⚠️ 每日持仓简报 (${warnings.length} 项警告)` : '每日持仓简报';
+  const body = buildNotificationBody(warnings, vix);
   await sendNotification(fcmToken, title, body);
 }
 
@@ -80,8 +82,6 @@ async function runDeltaAlertNotification() {
   }
 
   const db = getFirestore();
-
-  // Collect all users who have FCM tokens stored
   const usersSnap = await db.collection('artifacts').doc(APP_ID).collection('users').listDocuments();
 
   await Promise.allSettled(usersSnap.map(async (userRef) => {
@@ -90,9 +90,8 @@ async function runDeltaAlertNotification() {
     try {
       const fcmSnap = await userRef.collection('config').doc('fcm').get();
       fcmToken = fcmSnap.exists ? fcmSnap.data()?.token : null;
-      if (!fcmToken) return; // user hasn't enabled notifications
+      if (!fcmToken) return;
 
-      // Get valid TastyTrade access token from server-side cache
       const tokenRef = db.collection('artifacts').doc(APP_ID)
         .collection('_server').doc('tokens')
         .collection('users').doc(uid);
