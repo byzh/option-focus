@@ -146,10 +146,10 @@ export default function App() {
   useEffect(() => {
     if (!app) return;
     const unsubForeground = onForegroundMessage(app, ({ title, body }) => {
-      setMessageModal({ isOpen: true, title, content: body, type: 'info' });
+      setMessageModal({ isOpen: true, title, content: body, type: 'info', variant: 'notification' });
     });
     const unsubNotification = onNotificationMessage(({ title, body }) => {
-      setMessageModal({ isOpen: true, title, content: body, type: 'info' });
+      setMessageModal({ isOpen: true, title, content: body, type: 'info', variant: 'notification' });
     });
     return () => { unsubForeground(); unsubNotification(); };
   }, []);
@@ -803,7 +803,7 @@ export default function App() {
       {showAddModal && <AddEditModal formData={formData} setFormData={setFormData} onSubmit={handleSubmit} onClose={closeModal} activeTab={activeTab} positions={positions} onSelectPos={handlePositionSelect} isSaving={isSaving} />}
       {executionPlan && <ExecutionModal plan={executionPlan} onClose={() => setExecutionPlan(null)} onConfirm={handleExecutionConfirm} isLoading={isExecuting} />}
       {stockTradePosition && <StockTradeModal position={stockTradePosition} onClose={() => setStockTradePosition(null)} onConfirm={(action, shares, price, date, notes) => handleStockTrade(stockTradePosition, action, shares, price, date, notes)} />}
-      <MessageModal isOpen={messageModal.isOpen} title={messageModal.title} content={messageModal.content} type={messageModal.type} onClose={() => setMessageModal({ ...messageModal, isOpen: false })} />
+      <MessageModal isOpen={messageModal.isOpen} title={messageModal.title} content={messageModal.content} type={messageModal.type} variant={messageModal.variant} onClose={() => setMessageModal({ ...messageModal, isOpen: false })} />
       <ConfirmModal isOpen={confirmModal.isOpen} title={confirmModal.title} content={confirmModal.content} loading={isMigrating} onConfirm={confirmModal.onConfirm} onCancel={() => setConfirmModal({ ...confirmModal, isOpen: false })} />
     </div>
   );
