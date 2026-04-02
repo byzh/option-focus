@@ -32,32 +32,29 @@ function NotificationContent({ content }) {
   const isAllGood = warnings.length === 0;
 
   return (
-    <div className="space-y-2 mb-6">
-      {isAllGood && (
-        <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-medium py-1">
-          <CheckCircle2 size={16} />
-          <span>所有持仓状态正常</span>
+    <div className="mb-5">
+      {/* VIX row */}
+      {vixEntry && (
+        <div className="flex items-center gap-1 text-slate-400 dark:text-slate-500 text-xs mb-2">
+          <Activity size={11} />
+          <span>VIX {vixEntry.detail}</span>
         </div>
       )}
 
-      {warnings.map((item, i) => {
-        const { cfg } = item;
-        return (
-          <div key={i} className={`flex items-start gap-2 rounded-lg px-3 py-2 ${cfg.bg}`}>
-            <cfg.Icon size={15} className={`mt-0.5 shrink-0 ${cfg.text}`} />
-            <div className="flex-1 min-w-0">
-              <span className={`text-xs font-semibold ${cfg.text}`}>{cfg.label}</span>
-              <span className="text-slate-700 dark:text-slate-200 text-xs ml-2">{item.detail}</span>
-            </div>
-          </div>
-        );
-      })}
-
-      {vixEntry && (
-        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs pt-1 border-t border-slate-200 dark:border-slate-700 mt-2">
-          <Activity size={13} />
-          <span>VIX {vixEntry.detail}</span>
+      {isAllGood ? (
+        <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 text-sm">
+          <CheckCircle2 size={14} />
+          <span>所有持仓状态正常</span>
         </div>
+      ) : (
+        <ul className="space-y-1">
+          {warnings.map((item, i) => (
+            <li key={i} className="flex items-baseline gap-1.5 text-xs leading-snug">
+              <span className={`shrink-0 font-semibold ${item.cfg.text}`}>{item.cfg.label}</span>
+              <span className="text-slate-600 dark:text-slate-300 truncate">{item.detail}</span>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
