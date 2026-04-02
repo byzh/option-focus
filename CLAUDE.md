@@ -7,7 +7,7 @@
 - **前端**: React 19, Vite, TailwindCSS, Lucide React
 - **数据库**: Firebase Firestore (`APP_ID = 'option-focus-v2'`)
 - **行情**: TastyTrade REST API + dxFeed WebSocket (Greeks, OI)
-- **部署**: Firebase Hosting (test: option-focus-test, prod: option-focus-prod)
+- **部署**: Vercel (前端, option-focus.vercel.app) + Firebase Functions (后端)
 
 ## 常用命令
 
@@ -15,8 +15,7 @@
 npm run dev        # 本地开发 http://localhost:5173
 npm run build      # 生产构建
 npm test           # Vitest 单元测试
-firebase deploy --only hosting:test   # 部署 test
-firebase deploy --only hosting:prod   # 部署 prod
+vercel --prod      # 部署前端到 production
 ```
 
 ## 关键路径约定
