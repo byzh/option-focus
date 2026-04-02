@@ -36,7 +36,7 @@ export async function registerFcm(app, db, uid) {
 }
 
 /**
- * Handle foreground messages (app is open).
+ * Handle foreground messages (app is open and in foreground).
  * Returns an unsubscribe function.
  *
  * @param {object} app - Firebase app instance
@@ -49,4 +49,31 @@ export function onForegroundMessage(app, onReceive) {
     const body = payload.data?.body ?? payload.notification?.body ?? '';
     onReceive({ title, body });
   });
+}
+
+/**
+ * Handle notification clicks that open or focus the app from background.
+ * Listens for postMessage from the Service Worker, and on setup queries
+ * the SW for any pending notification stored before the window opened.
+ * Returns an unsubscribe function.
+ *
+ * @param {function} onReceive - callback({ title, body })
+ */
+export function onNotificationMessage(onReceive) {
+  if (!('serviceWorker' in navigator)) return () => {};
+
+  const handler = (event) => {
+    if (event.data?.type === 'notification-click') {
+      onReceive({ title: event.data.title ?? '', body: event.data.body ?? '' });
+    }
+  };
+  navigator.serviceWorker.addEventListener('message', handler);
+
+  // Query SW for content stored before this window was open
+  // (covers the case where the app was launched by clicking the notification)
+  navigator.serviceWorker.ready.then((reg) => {
+    reg.active?.postMessage({ type: 'get-pending-notification' });
+  });
+
+  return () => navigator.serviceWorker.removeEventListener('message', handler);
 }
