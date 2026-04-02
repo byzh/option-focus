@@ -4,6 +4,7 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 const { isMarketClosed } = require('./marketHolidays');
 const { fetchDeltasForPositions, fetchVixValue } = require('./fetchDeltasServer');
+const { getValidAccessToken } = require('./tokenHelper');
 const {
   collectPutWarnings,
   collectLeapsWarnings,
@@ -75,7 +76,7 @@ async function processUser(uid, fcmToken, accessToken) {
  * Main entry point — called by the Cloud Scheduler.
  * Iterates all users with FCM tokens and sends daily recap.
  */
-async function runDeltaAlertNotification() {
+async function runDeltaAlertNotification(clientId, clientSecret) {
   if (isMarketClosed()) {
     console.log('Market closed today, skipping delta alert.');
     return;
@@ -92,20 +93,7 @@ async function runDeltaAlertNotification() {
       fcmToken = fcmSnap.exists ? fcmSnap.data()?.token : null;
       if (!fcmToken) return;
 
-      const tokenRef = db.collection('artifacts').doc(APP_ID)
-        .collection('_server').doc('tokens')
-        .collection('users').doc(uid);
-      const tokenSnap = await tokenRef.get();
-      if (!tokenSnap.exists) {
-        await sendNotification(fcmToken, '简报发送失败', '未连接 TastyTrade，请打开 app 重新连接');
-        return;
-      }
-      const { accessToken, accessTokenExpiry } = tokenSnap.data();
-      if (!accessToken || new Date(accessTokenExpiry) < new Date()) {
-        await sendNotification(fcmToken, '简报发送失败', 'TastyTrade 会话已过期，请打开 app 重新连接');
-        return;
-      }
-
+      const accessToken = await getValidAccessToken(uid, clientId, clientSecret);
       await processUser(uid, fcmToken, accessToken);
     } catch (err) {
       console.error(`Delta alert failed for uid=${uid}:`, err.message);

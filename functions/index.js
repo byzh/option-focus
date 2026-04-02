@@ -4,8 +4,8 @@ const { onRequest } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
-const { getFirestore } = require('firebase-admin/firestore');
 const { defineSecret } = require('firebase-functions/params');
+const { fetchAccessToken, getValidAccessToken, getUserRefs } = require('./tokenHelper');
 const cors = require('cors')({
   origin: (origin, callback) => {
     // Allow same-origin / server-to-server calls (no Origin header)
@@ -34,13 +34,11 @@ const cors = require('cors')({
 // Initialize admin SDK once (singleton)
 initializeApp();
 const auth = getAuth();
-const db = getFirestore();
 
 // Define secrets using Firebase Secret Manager
 const clientId = defineSecret('TASTYTRADE_CLIENT_ID');
 const clientSecret = defineSecret('TASTYTRADE_CLIENT_SECRET');
 
-const APP_ID = 'option-focus-v2';
 const TASTYTRADE_API = 'https://api.tastytrade.com';
 
 // Whitelist of allowed API paths (security: prevent access to sensitive endpoints)
@@ -65,92 +63,6 @@ async function verifyAuth(req) {
   }
 }
 
-// Helper: get Firestore refs for a user
-function getUserRefs(uid) {
-  const configRef = db.collection('artifacts').doc(APP_ID)
-    .collection('users').doc(uid)
-    .collection('config').doc('tastytrade');
-  const tokenRef = db.collection('artifacts').doc(APP_ID)
-    .collection('_server').doc('tokens')
-    .collection('users').doc(uid);
-  return { configRef, tokenRef };
-}
-
-// Helper: call Tastytrade OAuth to get access_token
-async function fetchAccessToken(refreshToken, CLIENT_ID, CLIENT_SECRET) {
-  const params = new URLSearchParams({
-    grant_type: 'refresh_token',
-    refresh_token: refreshToken.trim(),
-    client_id: CLIENT_ID.trim(),
-    client_secret: CLIENT_SECRET.trim(),
-  });
-
-  const oauthRes = await fetch(`${TASTYTRADE_API}/oauth/token`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'OptionFocus/1.0',
-    },
-    body: params.toString(),
-  });
-
-  const responseText = await oauthRes.text();
-  let tokenData;
-  try {
-    tokenData = JSON.parse(responseText);
-  } catch {
-    throw new Error(`Tastytrade API error: HTTP ${oauthRes.status}`);
-  }
-
-  if (!oauthRes.ok) {
-    throw new Error(tokenData?.error_description || tokenData?.error || `HTTP ${oauthRes.status}`);
-  }
-
-  if (!tokenData.access_token || !tokenData.expires_in) {
-    throw new Error('Tastytrade response missing access_token or expires_in');
-  }
-
-  return tokenData;
-}
-
-// Helper: get valid access_token (from cache or refresh)
-async function getValidAccessToken(uid) {
-  const { configRef, tokenRef } = getUserRefs(uid);
-
-  // Check cached token
-  const tokenSnap = await tokenRef.get();
-  if (tokenSnap.exists) {
-    const cached = tokenSnap.data();
-    const expiresAt = new Date(cached.accessTokenExpiry);
-    const now = new Date();
-    // Still valid with 2-minute buffer
-    if (expiresAt - now > 2 * 60 * 1000) {
-      return cached.accessToken;
-    }
-  }
-
-  // Token expired or missing - refresh it
-  const configSnap = await configRef.get();
-  if (!configSnap.exists || !configSnap.data()?.refreshToken) {
-    throw new Error('Not connected. Please connect first.');
-  }
-
-  const refreshToken = configSnap.data().refreshToken;
-  const CLIENT_ID = clientId.value();
-  const CLIENT_SECRET = clientSecret.value();
-
-  const tokenData = await fetchAccessToken(refreshToken, CLIENT_ID, CLIENT_SECRET);
-
-  // Cache new token server-side only
-  const expiry = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
-  await tokenRef.set({
-    accessToken: tokenData.access_token,
-    accessTokenExpiry: expiry,
-    lastRefresh: Date.now(),
-  });
-
-  return tokenData.access_token;
-}
 
 // ============================================================
 // Cloud Function 1: OAuth Token Refresh (connect/reconnect)
@@ -268,7 +180,7 @@ exports.tastytradeApiProxy = onRequest(
         }
 
         // 4. Get valid access_token (auto-refreshes if expired)
-        const accessToken = await getValidAccessToken(decodedToken.uid);
+        const accessToken = await getValidAccessToken(decodedToken.uid, clientId.value(), clientSecret.value());
 
         // 5. Build Tastytrade API URL
         const url = new URL(`${TASTYTRADE_API}${path}`);
@@ -329,6 +241,6 @@ exports.dailyDeltaAlert = onSchedule(
   },
   async () => {
     const { runDeltaAlertNotification } = require('./deltaAlertNotification');
-    await runDeltaAlertNotification();
+    await runDeltaAlertNotification(clientId.value(), clientSecret.value());
   }
 );
