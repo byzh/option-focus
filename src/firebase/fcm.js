@@ -45,7 +45,8 @@ export async function registerFcm(app, db, uid) {
 export function onForegroundMessage(app, onReceive) {
   const messaging = getMessaging(app);
   return onMessage(messaging, (payload) => {
-    const { title = 'Option Focus', body = '' } = payload.notification ?? {};
+    const title = payload.data?.title ?? payload.notification?.title ?? 'Option Focus';
+    const body = payload.data?.body ?? payload.notification?.body ?? '';
     onReceive({ title, body });
   });
 }

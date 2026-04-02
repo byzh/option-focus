@@ -11,6 +11,7 @@ const {
   collectCCWarnings,
   collectPMCCWarnings,
   buildNotificationBody,
+  buildNotificationSummary,
   calculateDTE,
 } = require('./alertHelpers');
 
@@ -18,12 +19,14 @@ const APP_ID = 'option-focus-v2';
 
 /**
  * Send an FCM message to a single device token.
+ * - notification.body: short summary shown in system notification banner
+ * - data.body: full content shown in-app via MessageModal
  */
-async function sendNotification(fcmToken, title, body) {
+async function sendNotification(fcmToken, title, summary, fullBody) {
   await getMessaging().send({
     token: fcmToken,
-    notification: { title, body },
-    data: { title, body },
+    notification: { title, body: summary },
+    data: { title, body: fullBody },
   });
 }
 
@@ -68,8 +71,9 @@ async function processUser(uid, fcmToken, accessToken) {
   ];
 
   const title = warnings.length ? `⚠️ 每日持仓简报 (${warnings.length} 项警告)` : '每日持仓简报';
-  const body = buildNotificationBody(warnings, vix);
-  await sendNotification(fcmToken, title, body);
+  const summary = buildNotificationSummary(warnings, vix);
+  const fullBody = buildNotificationBody(warnings, vix);
+  await sendNotification(fcmToken, title, summary, fullBody);
 }
 
 /**

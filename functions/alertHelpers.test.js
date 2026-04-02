@@ -8,6 +8,7 @@ const {
   collectCCWarnings,
   collectPMCCWarnings,
   buildNotificationBody,
+  buildNotificationSummary,
 } = require('./alertHelpers');
 
 function daysFromNow(n) {
@@ -228,5 +229,29 @@ describe('buildNotificationBody', () => {
     const body = buildNotificationBody(warnings, 18.3);
     const lines = body.split('\n');
     expect(lines[lines.length - 1]).toBe('VIX: 18.3');
+  });
+});
+
+// ─── buildNotificationSummary ─────────────────────────────────────────────────
+describe('buildNotificationSummary', () => {
+  it('returns 所有持仓正常 with VIX when no warnings', () => {
+    expect(buildNotificationSummary([], 18.3)).toBe('所有持仓正常 · VIX 18.3');
+  });
+
+  it('returns 所有持仓正常 without VIX when vix is null', () => {
+    expect(buildNotificationSummary([], null)).toBe('所有持仓正常');
+  });
+
+  it('returns warning count with VIX', () => {
+    const warnings = [
+      { type: 'PUT', ticker: 'SPY', strike: 500, expiration: '2026-06-20', message: 'Δ0.60 偏高' },
+      { type: 'CC', ticker: 'AAPL', uncoveredShares: 100 },
+    ];
+    expect(buildNotificationSummary(warnings, 20.5)).toBe('2 项警告 · VIX 20.5');
+  });
+
+  it('returns warning count without VIX when vix is null', () => {
+    const warnings = [{ type: 'PMCC', ticker: 'QQQ', uncoveredContracts: 1 }];
+    expect(buildNotificationSummary(warnings, null)).toBe('1 项警告');
   });
 });

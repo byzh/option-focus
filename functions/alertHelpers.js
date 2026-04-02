@@ -146,6 +146,18 @@ function buildNotificationBody(warnings, vix) {
   return lines.join('\n');
 }
 
+/**
+ * Build a short one-line summary for the system notification banner.
+ * Example: "12 项警告 · VIX 18.3" or "所有持仓正常 · VIX 18.3"
+ * @param {Array} warnings
+ * @param {number|null} vix
+ */
+function buildNotificationSummary(warnings, vix) {
+  const vixPart = vix != null ? `VIX ${vix.toFixed(1)}` : null;
+  const warnPart = warnings.length ? `${warnings.length} 项警告` : '所有持仓正常';
+  return [warnPart, vixPart].filter(Boolean).join(' · ');
+}
+
 module.exports = {
   assessLeapsHealth,
   calculateDTE,
@@ -154,4 +166,5 @@ module.exports = {
   collectCCWarnings,
   collectPMCCWarnings,
   buildNotificationBody,
+  buildNotificationSummary,
 };
