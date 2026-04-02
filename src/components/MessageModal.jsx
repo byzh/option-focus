@@ -23,21 +23,41 @@ function parseLine(line) {
   return { kind: 'text', detail: line };
 }
 
+const GROUP_ORDER = ['PUT', 'LEAPS', 'CC', 'PMCC'];
+
 function NotificationContent({ content }) {
   const lines = (content ?? '').split('\n').map(l => l.trim()).filter(Boolean);
-  const parsed = lines.map(parseLine);
 
+  // Extract VIX from any line — either "VIX: 18.3" or embedded "所有持仓状态正常 · VIX 18.3"
+  let vix = null;
+  const warningLines = [];
+  for (const line of lines) {
+    const vixMatch = line.match(/VIX[:\s]+([\d.]+)/);
+    if (line.startsWith('VIX:')) {
+      vix = line.slice(4).trim();
+    } else {
+      if (vixMatch) vix = vixMatch[1];
+      warningLines.push(line);
+    }
+  }
+
+  const parsed = warningLines.map(parseLine);
   const warnings = parsed.filter(l => l.kind in TAG_CONFIG);
-  const vixEntry  = parsed.find(l => l.kind === 'VIX');
   const isAllGood = warnings.length === 0;
 
+  // Group details by type
+  const groups = {};
+  for (const w of warnings) {
+    (groups[w.kind] ??= []).push(w.detail);
+  }
+
   return (
-    <div className="mb-5">
-      {/* VIX row */}
-      {vixEntry && (
-        <div className="flex items-center gap-1 text-slate-400 dark:text-slate-500 text-xs mb-2">
+    <div className="mb-5 space-y-2.5">
+      {/* VIX */}
+      {vix && (
+        <div className="flex items-center gap-1 text-slate-400 dark:text-slate-500 text-xs">
           <Activity size={11} />
-          <span>VIX {vixEntry.detail}</span>
+          <span>VIX {vix}</span>
         </div>
       )}
 
@@ -47,14 +67,14 @@ function NotificationContent({ content }) {
           <span>所有持仓状态正常</span>
         </div>
       ) : (
-        <ul className="space-y-1">
-          {warnings.map((item, i) => (
-            <li key={i} className="flex items-baseline gap-1.5 text-xs leading-snug">
-              <span className={`shrink-0 font-semibold ${item.cfg.text}`}>{item.cfg.label}</span>
-              <span className="text-slate-600 dark:text-slate-300 truncate">{item.detail}</span>
-            </li>
-          ))}
-        </ul>
+        GROUP_ORDER.filter(k => groups[k]).map(k => (
+          <div key={k}>
+            <div className={`text-xs font-semibold mb-0.5 ${TAG_CONFIG[k].text}`}>{TAG_CONFIG[k].label}</div>
+            {groups[k].map((detail, i) => (
+              <div key={i} className="text-xs text-slate-600 dark:text-slate-300 pl-2 leading-snug">{detail}</div>
+            ))}
+          </div>
+        ))
       )}
     </div>
   );
