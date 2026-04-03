@@ -55,12 +55,13 @@ async function processUser(uid, fcmToken, accessToken) {
     p.status !== 'CLOSED' && (calculateDTE(p.expiration) ?? 0) > 90
   );
 
-  // Fetch deltas for PUTs and LEAPS in one batch (deduplicated by id)
+  // Fetch deltas and VIX in parallel to stay within function timeout
   const deltaTargets = [...new Map([...leapsPositions, ...putPositions].map(p => [p.id, p])).values()];
-  const deltaMap = deltaTargets.length ? await fetchDeltasForPositions(accessToken, deltaTargets) : new Map();
-
-  // Fetch VIX (non-blocking)
-  const vix = await fetchVixValue(accessToken);
+  const [deltaMap, vix] = await Promise.all([
+    deltaTargets.length ? fetchDeltasForPositions(accessToken, deltaTargets) : Promise.resolve(new Map()),
+    fetchVixValue(accessToken),
+  ]);
+  console.log(`VIX fetched: ${vix ?? 'null'}, delta targets: ${deltaTargets.length}, resolved: ${deltaMap.size}`);
 
   // Collect all warnings
   const warnings = [
