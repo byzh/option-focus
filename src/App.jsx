@@ -72,6 +72,7 @@ export default function App() {
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
   const [isRiskExpanded, setIsRiskExpanded] = useState(false);
   const [isRealizedExpanded, setIsRealizedExpanded] = useState(false);
+  const [isClosedExpanded, setIsClosedExpanded] = useState(false);
   const [searchTicker, setSearchTicker] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [filterType, setFilterType] = useState('ALL');
@@ -765,33 +766,61 @@ export default function App() {
                   ));
                 }
 
-                return baseList.sort((a, b) => {
-                if (activeTab !== 'portfolio') return (b.actionDate || '').localeCompare(a.actionDate || '');
-                const dir = sortConfig.direction === 'asc' ? 1 : -1;
-                if (sortConfig.key === 'ticker') return (a.ticker || '').localeCompare(b.ticker || '') * dir;
-                if (sortConfig.key === 'days') {
-                  const aClosed = a.status === 'CLOSED';
-                  const bClosed = b.status === 'CLOSED';
-                  if (aClosed !== bClosed) return aClosed ? 1 : -1;
-                  const getDays = (item) => calculateDTE(item.expiration) ?? Infinity;
-                  return (getDays(a) - getDays(b)) * dir;
+                const sortFn = (a, b) => {
+                  if (activeTab !== 'portfolio') return (b.actionDate || '').localeCompare(a.actionDate || '');
+                  const dir = sortConfig.direction === 'asc' ? 1 : -1;
+                  if (sortConfig.key === 'ticker') return (a.ticker || '').localeCompare(b.ticker || '') * dir;
+                  if (sortConfig.key === 'days') {
+                    const getDays = (item) => calculateDTE(item.expiration) ?? Infinity;
+                    return (getDays(a) - getDays(b)) * dir;
+                  }
+                  return (b.dateOpened || '').localeCompare(a.dateOpened || '') * dir;
+                };
+                const renderCard = (item) => {
+                  const concentration = item.type === 'PUT' && item.direction === 'SELL' ? getTickerConcentration(item.ticker) : 0;
+                  return (
+                    <ItemCard
+                      key={item.id} item={item} type={activeTab} onEdit={openEdit} onDelete={deleteItem}
+                      onExecute={() => setExecutionPlan(item)}
+                      onDirectAction={handleDirectAction}
+                      onReopen={handleReopen}
+                      onStockTrade={setStockTradePosition}
+                      concentration={concentration}
+                      strategyTag={getStrategyTag(item)}
+                      delta={deltaMap[item.id] ?? null}
+                    />
+                  );
+                };
+
+                // In portfolio tab with ALL filter: split open vs closed, show closed collapsed at bottom
+                if (activeTab === 'portfolio' && filterStatus === 'ALL') {
+                  const isItemClosed = (p) => p.assetType === 'STOCK' ? p.status === 'CLOSED' : p.status === 'CLOSED' || isExpired(p.expiration);
+                  const openItems = baseList.filter(p => !isItemClosed(p)).sort(sortFn);
+                  const closedItems = baseList.filter(p => isItemClosed(p)).sort(sortFn);
+                  return (
+                    <>
+                      {openItems.map(renderCard)}
+                      {closedItems.length > 0 && (
+                        <div className="mt-2">
+                          <button
+                            onClick={() => setIsClosedExpanded(v => !v)}
+                            className="w-full flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-700 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                          >
+                            <ChevronUp size={14} className={`transition-transform ${isClosedExpanded ? '' : 'rotate-180'}`} />
+                            <span>已平仓 / 已过期 ({closedItems.length})</span>
+                          </button>
+                          {isClosedExpanded && (
+                            <div className="mt-2 space-y-2">
+                              {closedItems.map(renderCard)}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  );
                 }
-                return (b.dateOpened || '').localeCompare(a.dateOpened || '') * dir;
-              }).map(item => {
-                const concentration = item.type === 'PUT' && item.direction === 'SELL' ? getTickerConcentration(item.ticker) : 0;
-                return (
-                  <ItemCard
-                    key={item.id} item={item} type={activeTab} onEdit={openEdit} onDelete={deleteItem}
-                    onExecute={() => setExecutionPlan(item)}
-                    onDirectAction={handleDirectAction}
-                    onReopen={handleReopen}
-                    onStockTrade={setStockTradePosition}
-                    concentration={concentration}
-                    strategyTag={getStrategyTag(item)}
-                    delta={deltaMap[item.id] ?? null}
-                  />
-                );
-              });
+
+                return baseList.sort(sortFn).map(renderCard);
               })()}
             </div>
             </>
