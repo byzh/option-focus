@@ -194,7 +194,8 @@ async function fetchVixValue(accessToken) {
     const streamerSymbol = instData?.data?.['streamer-symbol'] ?? '$VIX.X';
 
     const dxFeedAuth = await getDxFeedToken(accessToken);
-    const subscriptions = [{ type: 'Quote', symbol: streamerSymbol }];
+    // Use Trade event (price field) — VIX is an index with no real bid/ask
+    const subscriptions = [{ type: 'Trade', symbol: streamerSymbol }];
 
     return await new Promise((resolve) => {
       const ws = new WebSocket(dxFeedAuth.wsUrl);
@@ -231,7 +232,7 @@ async function fetchVixValue(accessToken) {
               ws.send(JSON.stringify({
                 type: 'FEED_SETUP', channel: 1,
                 acceptAggregationPeriod: 0, acceptDataFormat: 'COMPACT',
-                acceptEventFields: { Quote: ['eventSymbol', 'bidPrice', 'askPrice'] },
+                acceptEventFields: { Trade: ['eventSymbol', 'price'] },
               }));
               ws.send(JSON.stringify({ type: 'FEED_SUBSCRIPTION', channel: 1, reset: true, add: subscriptions }));
             }
@@ -241,11 +242,9 @@ async function fetchVixValue(accessToken) {
             const data = msg.data;
             if (!Array.isArray(data) || data.length < 2 || !Array.isArray(data[1])) break;
             const values = data[1];
-            for (let i = 0; i + 2 < values.length; i += 3) {
-              const bid = Number(values[i + 1]);
-              const ask = Number(values[i + 2]);
-              const mid = (bid + ask) / 2;
-              if (isFinite(mid) && mid > 0) { done(mid); return; }
+            for (let i = 0; i + 1 < values.length; i += 2) {
+              const price = Number(values[i + 1]);
+              if (isFinite(price) && price > 0) { done(price); return; }
             }
             break;
           }
