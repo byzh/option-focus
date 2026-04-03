@@ -127,7 +127,7 @@ function NotificationContent({ content }) {
   return (
     <div className="mb-5 space-y-2.5">
       {vix && (
-        <div className="flex items-center gap-1 text-slate-400 dark:text-slate-500 text-xs">
+        <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300 text-xs">
           <Activity size={11} />
           <span>VIX {vix}</span>
         </div>
