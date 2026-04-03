@@ -692,9 +692,14 @@ function OIWallChart({ oiData, loading, error, underlyingPrice }) {
   const putWallStrike = strikes.reduce((best, s) =>
     (oiData[s]?.putOI || 0) > (oiData[best]?.putOI || 0) ? s : best, strikes[0]);
 
-  // Find ATM strike (closest to current price)
+  // Find ATM strike (closest to current price) — used for row highlight
   const atmStrike = underlyingPrice != null
     ? strikes.reduce((best, s) => Math.abs(s - underlyingPrice) < Math.abs(best - underlyingPrice) ? s : best, strikes[0])
+    : null;
+
+  // Find the largest strike ≤ current price — price line renders AFTER this row
+  const lowerBracket = underlyingPrice != null
+    ? (strikes.filter(s => s <= underlyingPrice).at(-1) ?? null)
     : null;
 
   const fmtOI = (n) => n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n);
@@ -728,18 +733,10 @@ function OIWallChart({ oiData, loading, error, underlyingPrice }) {
           const isPutWall = strike === putWallStrike && putOI > 0;
           const isATM = strike === atmStrike;
 
+          const isLowerBracket = strike === lowerBracket;
+
           return (
             <div key={strike} ref={isATM ? atmRef : null}>
-              {/* Current price marker: thin amber line above ATM strike */}
-              {isATM && underlyingPrice != null && (
-                <div className="flex items-center gap-1 my-0.5">
-                  <div className="flex-1 h-px bg-amber-400" />
-                  <span className="text-[9px] font-bold text-amber-500 shrink-0">
-                    ▼ {underlyingPrice.toFixed(2)}
-                  </span>
-                  <div className="flex-1 h-px bg-amber-400" />
-                </div>
-              )}
               <div
                 className={`flex items-center gap-1.5 rounded px-1 py-0.5 ${
                   isATM ? 'bg-amber-50 dark:bg-amber-900/20' :
@@ -780,6 +777,16 @@ function OIWallChart({ oiData, loading, error, underlyingPrice }) {
                   </div>
                 </div>
               </div>
+              {/* Current price marker: thin amber line after the strike just below current price */}
+              {isLowerBracket && underlyingPrice != null && (
+                <div className="flex items-center gap-1 my-0.5">
+                  <div className="flex-1 h-px bg-amber-400" />
+                  <span className="text-[9px] font-bold text-amber-500 shrink-0">
+                    ▼ {underlyingPrice.toFixed(2)}
+                  </span>
+                  <div className="flex-1 h-px bg-amber-400" />
+                </div>
+              )}
             </div>
           );
         })}

@@ -61,7 +61,6 @@ async function processUser(uid, fcmToken, accessToken) {
     deltaTargets.length ? fetchDeltasForPositions(accessToken, deltaTargets) : Promise.resolve(new Map()),
     fetchVixValue(accessToken),
   ]);
-  console.log(`VIX fetched: ${vix ?? 'null'}, delta targets: ${deltaTargets.length}, resolved: ${deltaMap.size}`);
 
   // Collect all warnings
   const warnings = [

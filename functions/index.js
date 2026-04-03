@@ -105,7 +105,6 @@ exports.tastytradeRefreshToken = onRequest(
         }
 
         // 4. Call Tastytrade OAuth
-        console.log('Calling Tastytrade OAuth for user:', decodedToken.uid);
         const tokenData = await fetchAccessToken(refreshToken, CLIENT_ID, CLIENT_SECRET);
 
         // 5. Cache access_token SERVER-SIDE ONLY (never sent to client)

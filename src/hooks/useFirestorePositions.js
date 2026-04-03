@@ -44,7 +44,6 @@ export function useFirestorePositions({ user, db }) {
       const reopenedAfterExpiry = reopenEntry && reopenEntry.date > p.expiration;
 
       if (p.status !== 'CLOSED' && !hasAutoExpireRecord && !reopenedAfterExpiry) {
-        console.log(`Auto-closing expired position: ${p.ticker}`);
         updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', p.id), {
           status: 'CLOSED',
           closePrice: 0,
@@ -52,7 +51,6 @@ export function useFirestorePositions({ user, db }) {
           history: [{ date: today, action: 'AUTO_EXPIRE', closePrice: 0, notes: '自动过期' }, ...(p.history || [])]
         }).catch(e => console.error('Failed to auto-close:', e));
       } else if (p.status === 'CLOSED' && !hasAutoExpireRecord) {
-        console.log(`Adding auto-expire record to: ${p.ticker}`);
         updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', p.id), {
           history: [{ date: p.dateClosed || today, action: 'AUTO_EXPIRE', closePrice: 0, notes: '自动过期' }, ...(p.history || [])]
         }).catch(e => console.error('Failed to add auto-expire record:', e));

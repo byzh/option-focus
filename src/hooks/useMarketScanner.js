@@ -87,15 +87,7 @@ export function useMarketScanner({ user, db }) {
     abortRef.current = true;
   }, []);
 
-  const reset = useCallback(() => {
-    setScanState('idle');
-    setResults([]);
-    setAllMetrics([]);
-    setScanError(null);
-    setProgress({ current: 0, total: 0, batch: 0, totalBatches: 0 });
-  }, []);
-
-  return { scanState, progress, results, allMetrics, scanError, scan, refilter, abort, reset };
+  return { scanState, progress, results, allMetrics, scanError, scan, refilter, abort };
 }
 
 function applyFilters(metrics, filters) {
