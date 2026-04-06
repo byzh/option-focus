@@ -11,8 +11,9 @@ function AddEditModal({ formData, setFormData, onSubmit, onClose, activeTab, pos
   const isStock = formData.assetType === 'STOCK';
   const isPortfolio = activeTab === 'portfolio';
 
+  const isShortCall = isPortfolio && !isStock && formData.direction === 'SELL' && formData.type === 'CALL';
   // LEAPS candidates: open BUY CALL with DTE > 90, same ticker
-  const leapsCandidates = isPortfolio && !isStock && formData.direction === 'SELL' && formData.type === 'CALL'
+  const leapsCandidates = isShortCall
     ? positions.filter(p => {
         if (p.status === 'CLOSED') return false;
         if (p.assetType === 'STOCK') return false;
@@ -20,6 +21,15 @@ function AddEditModal({ formData, setFormData, onSubmit, onClose, activeTab, pos
         if (formData.ticker && p.ticker !== formData.ticker) return false;
         if (!p.expiration) return false;
         return (calculateDTE(p.expiration) ?? 0) > 90;
+      })
+    : [];
+  // Stock candidates: open STOCK positions of same ticker (for manual CC override)
+  const stockCandidates = isShortCall
+    ? positions.filter(p => {
+        if (p.assetType !== 'STOCK') return false;
+        if (p.status === 'CLOSED') return false;
+        if (formData.ticker && p.ticker !== formData.ticker) return false;
+        return true;
       })
     : [];
 
@@ -118,28 +128,30 @@ function AddEditModal({ formData, setFormData, onSubmit, onClose, activeTab, pos
             </div>
           )}
 
-          {/* LEAPS linking (SELL CALL with candidates available) */}
-          {isPortfolio && !isStock && formData.direction === 'SELL' && formData.type === 'CALL' && (
+          {/* LEAPS / Stock linking (SELL CALL with candidates available) */}
+          {isShortCall && (
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 dark:text-slate-400">关联 LEAPS (可选)</label>
+              <label className="text-xs font-bold text-slate-500 dark:text-slate-400">关联 LEAPS / 股票 (可选)</label>
               <select
                 className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded cursor-pointer bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 value={formData.leapsId || ''}
                 onChange={e => update('leapsId', e.target.value || null)}
               >
-                <option value="" className="bg-white dark:bg-slate-700 text-slate-900 dark:text-white">-- 无关联 LEAPS --</option>
+                <option value="" className="bg-white dark:bg-slate-700 text-slate-900 dark:text-white">-- 无关联 --</option>
                 {leapsCandidates.map(p => {
                   const dte = calculateDTE(p.expiration) ?? 0;
                   return (
                     <option key={p.id} value={p.id} className="bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
-                      {p.ticker} ${p.strike} {p.expiration} ({dte}d)
+                      [LEAPS] {p.ticker} ${p.strike} {p.expiration} ({dte}d)
                     </option>
                   );
                 })}
+                {stockCandidates.map(p => (
+                  <option key={p.id} value={p.id} className="bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
+                    [股票] {p.ticker} {p.contracts}股
+                  </option>
+                ))}
               </select>
-              {leapsCandidates.length === 0 && formData.ticker && (
-                <p className="text-xs text-slate-400">未找到 {formData.ticker} 的可用 LEAPS（需持有 DTE &gt; 90 的 BUY CALL）</p>
-              )}
             </div>
           )}
 

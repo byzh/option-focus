@@ -26,8 +26,7 @@ export function detectCC(positions) {
       p.assetType !== 'STOCK' &&
       p.type === 'CALL' &&
       p.direction === 'SELL' &&
-      !p.leapsId &&
-      (parseInt(p.contracts) || 1) <= maxLots
+      (p.leapsId === stockPos.id || (!p.leapsId && (parseInt(p.contracts) || 1) <= maxLots))
     );
     const openCalls = allCalls.filter(p => p.status !== 'CLOSED');
     const closedCalls = allCalls.filter(p => p.status === 'CLOSED');

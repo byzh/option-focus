@@ -150,7 +150,7 @@ function CCCard({ group, onOpenAddModal, onDirectAction, onReopen }) {
             return (
               <div key={c.id} className={`flex justify-between items-center text-xs px-2.5 py-1.5 rounded-lg ${expiringSoon ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300' : 'bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300'}`}>
                 <div className="flex items-center gap-2">
-                  {expiringSoon && <AlertTriangle size={11} className="text-amber-500 shrink-0" />}
+                  {expiringSoon && <span title="距到期不足 14 天，建议滚仓或平仓"><AlertTriangle size={11} className="text-amber-500 shrink-0 cursor-help" /></span>}
                   <span className="font-mono">${parseFloat(c.strike).toFixed(0)}</span>
                   <span className="">{c.expiration}{dte !== null && ` (${dte}d)`}</span>
                   <span className="font-mono">× {parseInt(c.contracts) || 1}</span><span> 张</span>
@@ -261,8 +261,8 @@ function PMCCCard({ group, deltaMap, onOpenAddModal, onDirectAction, onReopen })
           </div>
           <div className="text-xs font-medium">{health.message}</div>
         </div>
-        {health.level === 'danger' && <AlertTriangle size={14} className="shrink-0 mt-0.5 text-red-500" />}
-        {health.level === 'warn'   && <AlertTriangle size={14} className="shrink-0 mt-0.5 text-amber-500" />}
+        {health.level === 'danger' && <span title={health.message}><AlertTriangle size={14} className="shrink-0 mt-0.5 text-red-500 cursor-help" /></span>}
+        {health.level === 'warn'   && <span title={health.message}><AlertTriangle size={14} className="shrink-0 mt-0.5 text-amber-500 cursor-help" /></span>}
         {health.level === 'roll'   && <RefreshCw size={14} className="shrink-0 mt-0.5 text-violet-500" />}
         {health.level === 'ok'     && <CheckCircle2 size={14} className="shrink-0 mt-0.5 text-emerald-500" />}
       </div>
@@ -304,7 +304,7 @@ function PMCCCard({ group, deltaMap, onOpenAddModal, onDirectAction, onReopen })
             return (
               <div key={c.id} className={`flex justify-between items-center text-xs px-2.5 py-1.5 rounded-lg ${expiringSoon ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300' : 'bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300'}`}>
                 <div className="flex items-center gap-2">
-                  {expiringSoon && <AlertTriangle size={11} className="text-amber-500 shrink-0" />}
+                  {expiringSoon && <span title="距到期不足 14 天，建议滚仓或平仓"><AlertTriangle size={11} className="text-amber-500 shrink-0 cursor-help" /></span>}
                   <span className="font-mono">${parseFloat(c.strike).toFixed(0)}</span>
                   <span className="">{c.expiration}{cDte !== null && ` (${cDte}d)`}</span>
                   <span className="font-mono">× {parseInt(c.contracts) || 1}</span><span> 张</span>
