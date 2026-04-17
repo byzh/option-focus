@@ -5,10 +5,12 @@ import Button from './ui/Button';
 import Input from './ui/Input';
 
 const ExecutionModal = ({ plan, onClose, onConfirm, isLoading = false }) => {
+  const totalContracts = parseInt(plan.contracts) || 1;
   const [execData, setExecData] = useState({
     price: '',
     strike: plan.newStrike || plan.strike,
-    expiration: plan.newExpirationPeriod || plan.expiration
+    expiration: plan.newExpirationPeriod || plan.expiration,
+    contractsToClose: totalContracts,
   });
   const [validationError, setValidationError] = useState('');
 
@@ -21,6 +23,10 @@ const ExecutionModal = ({ plan, onClose, onConfirm, isLoading = false }) => {
     if (!priceStr) { setValidationError('请输入价格'); return; }
     const priceNum = parseFloat(priceStr);
     if (isNaN(priceNum)) { setValidationError('价格必须是有效的数字'); return; }
+    if (isClose && plan.assetType !== 'STOCK') {
+      const ctc = parseInt(execData.contractsToClose) || 0;
+      if (ctc < 1 || ctc > totalContracts) { setValidationError(`平仓张数须在 1 ~ ${totalContracts} 之间`); return; }
+    }
     if (!isClose) {
       if (!String(execData.strike || '').trim()) { setValidationError('请输入行权价'); return; }
       if (!String(execData.expiration || '').trim()) { setValidationError('请选择到期日'); return; }
@@ -71,14 +77,32 @@ const ExecutionModal = ({ plan, onClose, onConfirm, isLoading = false }) => {
                 </p>
               </div>
             ) : (
-              <Input
-                label={isClose ? "平仓价格 (Close Price)" : "开仓价格 (Open Price)"}
-                type="number" step="0.01"
-                value={execData.price}
-                onChange={e => setExecData({ ...execData, price: e.target.value })}
-                placeholder="2.50"
-                required
-              />
+              <>
+                <Input
+                  label={isClose ? "平仓价格 (Close Price)" : "开仓价格 (Open Price)"}
+                  type="number" step="0.01"
+                  value={execData.price}
+                  onChange={e => setExecData({ ...execData, price: e.target.value })}
+                  placeholder="2.50"
+                  required
+                />
+                {isClose && plan.assetType !== 'STOCK' && (
+                  <div className="mt-3">
+                    <Input
+                      label={`平仓张数 (最多 ${totalContracts} 张)`}
+                      type="number" step="1" min="1" max={totalContracts}
+                      value={execData.contractsToClose}
+                      onChange={e => setExecData({ ...execData, contractsToClose: Math.min(totalContracts, Math.max(1, parseInt(e.target.value) || 1)) })}
+                      required
+                    />
+                    {parseInt(execData.contractsToClose) < totalContracts && (
+                      <p className="text-xs text-slate-400 mt-1">
+                        部分平仓：剩余 {totalContracts - parseInt(execData.contractsToClose)} 张继续持有
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
             )}
 
             {!isClose && (

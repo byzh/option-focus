@@ -262,6 +262,9 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
               if (h.isInitial) {
                 label = `初始开仓 $${h.initialStrike} (${h.initialExpiration}) ${item.type}`;
                 if (item.direction === 'SELL') { val = -Math.abs(h.price); isCredit = true; } else { val = Math.abs(h.price); isCredit = false; }
+              } else if (h.action === 'PARTIAL_CLOSE') {
+                label = `部分平仓 ${h.contractsClosed} 张`;
+                val = parseFloat(h.realizedPnL) || 0; isCredit = val >= 0;
               } else if (h.action === 'CLOSE') {
                 label = '平仓 (Close)';
                 val = item.direction === 'SELL' ? Math.abs(h.closePrice) : -Math.abs(h.closePrice); isCredit = val < 0;
