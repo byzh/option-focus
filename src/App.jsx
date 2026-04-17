@@ -369,10 +369,14 @@ export default function App() {
           const contractsToClose = pos.assetType === 'STOCK' ? totalContracts : Math.min(totalContracts, Math.max(1, parseInt(execData.contractsToClose) || totalContracts));
           const remainingContracts = totalContracts - contractsToClose;
           if (remainingContracts > 0) {
-            // Partial close: reduce contracts, keep OPEN
+            // Partial close: reduce contracts, keep OPEN, reallocate cost basis
             const realizedPnL = calcFinalPnL(pos.direction, calcNetBasis(pos.entryPrice, pos.rollCredit, contractsToClose), closePrice, contractsToClose);
+            const originalNetPerContract = (parseFloat(pos.entryPrice) || 0) + (parseFloat(pos.rollCredit) || 0);
+            const newNetPerContract = (originalNetPerContract * totalContracts - closePrice * contractsToClose) / remainingContracts;
+            const newRollCredit = newNetPerContract - (parseFloat(pos.entryPrice) || 0);
             await updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', pos.id), {
               contracts: remainingContracts,
+              rollCredit: newRollCredit,
               history: [{ date: today, action: 'PARTIAL_CLOSE', contractsClosed: contractsToClose, closePrice, realizedPnL }, ...(pos.history || [])],
             });
           } else {
