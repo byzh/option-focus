@@ -681,7 +681,7 @@ export default function App() {
                       <span className={`text-xs px-1.5 py-0.5 rounded-full ${colorCls.badge}`}>{closedPositions.length} 个</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className={`font-mono font-bold ${colorCls.total}`}>{isPositive ? '+' : '-'}${Math.abs(totalPnL).toFixed(2)}</span>
+                      <span className={`font-mono font-bold ${colorCls.total}`}>{isPositive ? '+' : '-'}${Math.abs(totalPnL).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       <ChevronUp size={15} className={`${colorCls.chevron} transition-transform ${isRealizedExpanded ? '' : 'rotate-180'}`} />
                     </div>
                   </button>
@@ -701,7 +701,7 @@ export default function App() {
                               {isExpired && <span className="text-[10px] px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded">过期</span>}
                             </div>
                             <span className={`font-mono font-semibold ${isPos ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                              {isPos ? '+' : '-'}${Math.abs(pnl).toFixed(2)}
+                              {isPos ? '+' : '-'}${Math.abs(pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
                           </div>
                         );
