@@ -212,7 +212,7 @@ export default function App() {
   // Calculation helpers (thin wrappers)
   const calculateNetBasis = (pos) => {
     if (pos.assetType === 'STOCK') return calcStockNetBasis(pos.entryPrice, pos.contracts);
-    return calcNetBasis(pos.entryPrice, pos.rollCredit, pos.contracts);
+    return calcNetBasis(pos.entryPrice, pos.rollCredit, pos.contracts, pos.costAdj);
   };
   const calculateFinalPnL = (pos) => {
     if (pos.assetType === 'STOCK') {
@@ -369,14 +369,14 @@ export default function App() {
           const contractsToClose = pos.assetType === 'STOCK' ? totalContracts : Math.min(totalContracts, Math.max(1, parseInt(execData.contractsToClose) || totalContracts));
           const remainingContracts = totalContracts - contractsToClose;
           if (remainingContracts > 0) {
-            // Partial close: reduce contracts, keep OPEN, reallocate cost basis
-            const realizedPnL = calcFinalPnL(pos.direction, calcNetBasis(pos.entryPrice, pos.rollCredit, contractsToClose), closePrice, contractsToClose);
-            const originalNetPerContract = (parseFloat(pos.entryPrice) || 0) + (parseFloat(pos.rollCredit) || 0);
+            // Partial close: reduce contracts, keep OPEN, reallocate cost basis into costAdj
+            const realizedPnL = calcFinalPnL(pos.direction, calcNetBasis(pos.entryPrice, pos.rollCredit, contractsToClose, pos.costAdj), closePrice, contractsToClose);
+            const originalNetPerContract = (parseFloat(pos.entryPrice) || 0) + (parseFloat(pos.rollCredit) || 0) + (parseFloat(pos.costAdj) || 0);
             const newNetPerContract = (originalNetPerContract * totalContracts - closePrice * contractsToClose) / remainingContracts;
-            const newRollCredit = newNetPerContract - (parseFloat(pos.entryPrice) || 0);
+            const newCostAdj = newNetPerContract - (parseFloat(pos.entryPrice) || 0) - (parseFloat(pos.rollCredit) || 0);
             await updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', pos.id), {
               contracts: remainingContracts,
-              rollCredit: newRollCredit,
+              costAdj: newCostAdj,
               history: [{ date: today, action: 'PARTIAL_CLOSE', contractsClosed: contractsToClose, closePrice, realizedPnL }, ...(pos.history || [])],
             });
           } else {

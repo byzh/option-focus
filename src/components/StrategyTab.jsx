@@ -173,7 +173,7 @@ function CCCard({ group, onOpenAddModal, onDirectAction, onReopen }) {
         <div className="space-y-1">
           <div className="text-xs text-slate-400 font-medium">已平仓 Short Call</div>
           {group.closedCalls.map(c => {
-            const nb = calcNetBasis(c.entryPrice, c.rollCredit, c.contracts);
+            const nb = calcNetBasis(c.entryPrice, c.rollCredit, c.contracts, c.costAdj);
             const pnl = calcFinalPnL(c.direction, nb, parseFloat(c.closePrice) || 0, c.contracts);
             return (
               <div key={c.id} className="flex justify-between items-center text-xs px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400">
@@ -327,7 +327,7 @@ function PMCCCard({ group, deltaMap, onOpenAddModal, onDirectAction, onReopen })
         <div className="space-y-1">
           <div className="text-xs text-slate-400 font-medium">已平仓 Short Call</div>
           {group.closedLinkedCalls.map(c => {
-            const nb = calcNetBasis(c.entryPrice, c.rollCredit, c.contracts);
+            const nb = calcNetBasis(c.entryPrice, c.rollCredit, c.contracts, c.costAdj);
             const pnl = calcFinalPnL(c.direction, nb, parseFloat(c.closePrice) || 0, c.contracts);
             return (
               <div key={c.id} className="flex justify-between items-center text-xs px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400">

@@ -32,11 +32,12 @@ export function calcStockPnL(entryPrice, closePrice, shares) {
  * Net cost basis of an OPTION position in dollars.
  *   netBasis = (entryPrice + rollCredit) × 100 × contracts
  */
-export function calcNetBasis(entryPrice, rollCredit, contracts) {
+export function calcNetBasis(entryPrice, rollCredit, contracts, costAdj = 0) {
   const ep = parseFloat(entryPrice) || 0;
   const rc = parseFloat(rollCredit) || 0;
+  const ca = parseFloat(costAdj) || 0;
   const ct = parseInt(contracts) || 1;
-  return (ep + rc) * 100 * ct;
+  return (ep + rc + ca) * 100 * ct;
 }
 
 /**
@@ -51,11 +52,12 @@ export function calcNetBasis(entryPrice, rollCredit, contracts) {
  *   PUT:  strike - (entryPrice + rollCredit)
  *   CALL: strike + (entryPrice + rollCredit)
  */
-export function calcBreakEven(type, strike, entryPrice, rollCredit) {
+export function calcBreakEven(type, strike, entryPrice, rollCredit, costAdj = 0) {
   const s = parseFloat(strike) || 0;
   const ep = parseFloat(entryPrice) || 0;
   const rc = parseFloat(rollCredit) || 0;
-  return type === 'PUT' ? s - ep - rc : s + ep + rc;
+  const ca = parseFloat(costAdj) || 0;
+  return type === 'PUT' ? s - ep - rc - ca : s + ep + rc + ca;
 }
 
 export function calcFinalPnL(direction, netBasis, closePrice, contracts) {
@@ -74,7 +76,7 @@ export function calcFinalPnL(direction, netBasis, closePrice, contracts) {
  */
 export function calcRealizedCredits(closedCalls) {
   return (closedCalls || []).reduce((sum, p) => {
-    const netBasis = calcNetBasis(p.entryPrice, p.rollCredit, p.contracts);
+    const netBasis = calcNetBasis(p.entryPrice, p.rollCredit, p.contracts, p.costAdj);
     const closePrice = parseFloat(p.closePrice) || 0;
     const pnl = calcFinalPnL(p.direction, netBasis, closePrice, p.contracts);
     return sum + pnl;

@@ -113,7 +113,7 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
 
   if (type === 'portfolio') {
     const contracts = parseInt(item.contracts) || 1;
-    const netBasis = calcNetBasis(item.entryPrice, item.rollCredit, item.contracts);
+    const netBasis = calcNetBasis(item.entryPrice, item.rollCredit, item.contracts, item.costAdj);
     const isClosed = item.status === 'CLOSED';
     const isExpired = !isClosed && checkExpired(item.expiration);
 
@@ -192,10 +192,11 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
             <div className="text-sm text-slate-500 dark:text-slate-400">
               {(item.history || []).some(h => h.action === '增持') ? '增持' : '初始'}: ${parseFloat(item.entryPrice).toFixed(2)} × {contracts}
               {parseFloat(item.rollCredit) !== 0 && <span className={item.rollCredit > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}> 展期: {item.rollCredit > 0 ? '+' : '-'}${Math.abs(parseFloat(item.rollCredit)).toFixed(2)}</span>}
+              {parseFloat(item.costAdj) !== 0 && <span className={item.costAdj > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}> 摊薄: {item.costAdj > 0 ? '+' : '-'}${Math.abs(parseFloat(item.costAdj)).toFixed(2)}</span>}
             </div>
             {!isClosed && !isExpired && (
               <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                保本价: <span className="font-mono text-slate-600 dark:text-slate-300">${calcBreakEven(item.type, item.strike, item.entryPrice, item.rollCredit).toFixed(2)}</span>
+                保本价: <span className="font-mono text-slate-600 dark:text-slate-300">${calcBreakEven(item.type, item.strike, item.entryPrice, item.rollCredit, item.costAdj).toFixed(2)}</span>
               </div>
             )}
             {!isClosed && !isExpired && item.type === 'PUT' && delta != null && (() => {
