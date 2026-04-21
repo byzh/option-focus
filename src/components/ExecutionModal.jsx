@@ -92,7 +92,7 @@ const ExecutionModal = ({ plan, onClose, onConfirm, isLoading = false }) => {
                       label={`平仓张数 (最多 ${totalContracts} 张)`}
                       type="number" step="1" min="1" max={totalContracts}
                       value={execData.contractsToClose}
-                      onChange={e => setExecData({ ...execData, contractsToClose: Math.min(totalContracts, Math.max(1, parseInt(e.target.value) || 1)) })}
+                      onChange={e => setExecData({ ...execData, contractsToClose: e.target.value })}
                       required
                     />
                     {parseInt(execData.contractsToClose) < totalContracts && (
