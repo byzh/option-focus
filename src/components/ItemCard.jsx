@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Archive, AlertTriangle, RefreshCw, StopCircle,
-  History, ChevronUp, Edit3, Trash2, CheckSquare, ArrowRight, RotateCcw, CheckCircle2, ShoppingCart
+  History, ChevronUp, Edit3, Trash2, CheckSquare, ArrowRight, RotateCcw, CheckCircle2, ShoppingCart, Check, X
 } from 'lucide-react';
 import { calcNetBasis, calcFinalPnL, calcBreakEven, calcStockPnL, calcStockTotalRealizedPnL } from '../calc';
 import { assessLeapsHealth } from '../utils/leapsHealth';
@@ -9,8 +9,39 @@ import { isExpired as checkExpired, calculateDTE } from '../utils/dateUtils';
 import Card from './ui/Card';
 import Button from './ui/Button';
 
-function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onReopen, onStockTrade, concentration = 0, strategyTag = null, delta = null }) {
+function getPriceField(h) {
+  if (h.price != null) return 'price';
+  if (h.closePrice != null) return 'closePrice';
+  if (h.rollPrice != null) return 'rollPrice';
+  return null;
+}
+function getQtyField(h) {
+  if (h.shares != null) return 'shares';
+  if (h.contractsClosed != null) return 'contractsClosed';
+  if (h.contracts != null) return 'contracts';
+  return null;
+}
+
+function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onReopen, onStockTrade, onUpdateHistory, concentration = 0, strategyTag = null, delta = null }) {
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
+  const [editingHistoryFullIdx, setEditingHistoryFullIdx] = useState(null);
+  const [editForm, setEditForm] = useState({});
+
+  const startHistoryEdit = (fullIdx, h) => {
+    const pf = getPriceField(h);
+    const qf = getQtyField(h);
+    setEditingHistoryFullIdx(fullIdx);
+    setEditForm({ date: h.date || '', price: pf ? String(h[pf]) : '', qty: qf ? String(h[qf]) : '', priceField: pf, qtyField: qf });
+  };
+  const cancelHistoryEdit = () => { setEditingHistoryFullIdx(null); setEditForm({}); };
+  const saveHistoryEdit = () => {
+    if (!onUpdateHistory) return;
+    const updated = { date: editForm.date };
+    if (editForm.priceField) updated[editForm.priceField] = parseFloat(editForm.price) || 0;
+    if (editForm.qtyField) updated[editForm.qtyField] = editForm.qtyField === 'shares' ? parseInt(editForm.qty) || 0 : parseInt(editForm.qty) || 0;
+    onUpdateHistory(item, editingHistoryFullIdx, updated);
+    cancelHistoryEdit();
+  };
 
   if (type === 'portfolio' && item.assetType === 'STOCK') {
     const shares = parseInt(item.contracts) || 0;
@@ -75,32 +106,35 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
         {isHistoryExpanded && tradeHistory.length > 0 && (
           <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 text-sm">
             <div className="text-xs font-bold text-slate-400 mb-2 flex items-center gap-1"><History size={12} /> 交易历史</div>
-            {tradeHistory.map((h, idx) => {
+            {history.map((h, fullIdx) => {
+              if (h.action !== 'BUY' && h.action !== 'SELL' && h.action !== 'INIT') return null;
               const isInit = h.action === 'INIT';
               const isBuy  = h.action === 'BUY';
               const isSell = h.action === 'SELL';
-              const labelCls = isInit
-                ? 'text-slate-500 dark:text-slate-400'
-                : isBuy ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
+              const labelCls = isInit ? 'text-slate-500 dark:text-slate-400' : isBuy ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
+              const isEditing = editingHistoryFullIdx === fullIdx;
               return (
-                <div key={idx} className="flex items-center py-1 border-b border-dashed border-slate-100 dark:border-slate-800 last:border-0">
-                  <span className="text-slate-500 text-xs font-mono shrink-0 w-20">{h.date}</span>
-                  <span className={`text-xs font-bold shrink-0 w-10 ${labelCls}`}>
-                    {isInit ? 'INIT' : isBuy ? 'BUY' : 'SELL'}
-                  </span>
-                  <span className="flex-1 text-xs text-slate-600 dark:text-slate-300 px-1">
-                    {h.shares} 股 @ ${parseFloat(h.price).toFixed(2)}
-                    {h.notes ? <span className="text-slate-400 ml-1">({h.notes})</span> : null}
-                  </span>
-                  {isSell && (
-                    <span className={`font-mono text-xs shrink-0 ${h.realizedPnL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                      {h.realizedPnL >= 0 ? '+' : ''}${parseFloat(h.realizedPnL).toFixed(2)}
-                    </span>
-                  )}
-                  {(isInit || isBuy) && (
-                    <span className="font-mono text-xs shrink-0 text-slate-400">
-                      均价→${parseFloat(h.avgCostAfter).toFixed(2)}
-                    </span>
+                <div key={fullIdx} className="flex items-center py-1 border-b border-dashed border-slate-100 dark:border-slate-800 last:border-0 gap-1">
+                  {isEditing ? (
+                    <>
+                      <input type="date" value={editForm.date} onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))} className="text-xs font-mono border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 w-28 bg-white dark:bg-slate-700 text-slate-800 dark:text-white" />
+                      <input type="number" step="1" value={editForm.qty} onChange={e => setEditForm(f => ({ ...f, qty: e.target.value }))} className="text-xs font-mono border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 w-14 bg-white dark:bg-slate-700 text-slate-800 dark:text-white" placeholder="股数" />
+                      <input type="number" step="0.01" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} className="text-xs font-mono border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 w-16 bg-white dark:bg-slate-700 text-slate-800 dark:text-white" placeholder="价格" />
+                      <button onClick={saveHistoryEdit} className="p-1 rounded text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"><Check size={12} /></button>
+                      <button onClick={cancelHistoryEdit} className="p-1 rounded text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"><X size={12} /></button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-slate-500 text-xs font-mono shrink-0 w-20">{h.date}</span>
+                      <span className={`text-xs font-bold shrink-0 w-10 ${labelCls}`}>{isInit ? 'INIT' : isBuy ? 'BUY' : 'SELL'}</span>
+                      <span className="flex-1 text-xs text-slate-600 dark:text-slate-300 px-1">
+                        {h.shares} 股 @ ${parseFloat(h.price).toFixed(2)}
+                        {h.notes ? <span className="text-slate-400 ml-1">({h.notes})</span> : null}
+                      </span>
+                      {isSell && <span className={`font-mono text-xs shrink-0 ${h.realizedPnL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{h.realizedPnL >= 0 ? '+' : ''}${parseFloat(h.realizedPnL).toFixed(2)}</span>}
+                      {(isInit || isBuy) && <span className="font-mono text-xs shrink-0 text-slate-400">均价→${parseFloat(h.avgCostAfter).toFixed(2)}</span>}
+                      {onUpdateHistory && <button onClick={() => startHistoryEdit(fullIdx, h)} className="p-1 rounded text-slate-300 hover:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0"><Edit3 size={11} /></button>}
+                    </>
                   )}
                 </div>
               );
@@ -258,7 +292,7 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
         {isHistoryExpanded && (
           <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 text-sm overflow-hidden">
             <div className="text-xs font-bold text-slate-400 mb-2 flex items-center gap-1"><History size={12} /> 交易历史</div>
-            {history.map((h, idx) => {
+            {history.map((h, fullIdx) => {
               let label = "", val = 0, isCredit = false;
               if (h.isInitial) {
                 label = `初始开仓 $${h.initialStrike} (${h.initialExpiration}) ${item.type}`;
@@ -272,8 +306,7 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
               } else if (h.action === 'REOPEN') {
                 label = '重新开仓'; val = 0; isCredit = false;
               } else if (h.action === 'AUTO_EXPIRE') {
-                label = '自动过期';
-                val = 0; isCredit = false;
+                label = '自动过期'; val = 0; isCredit = false;
               } else if (h.action === 'ROLL') {
                 label = `展期 → ${h.newExpiration} $${h.newStrike}`;
                 val = h.rollPrice; isCredit = val < 0;
@@ -282,11 +315,27 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
                 val = item.direction === 'SELL' ? -Math.abs(h.price) : Math.abs(h.price);
                 isCredit = item.direction === 'SELL';
               }
+              const isEditing = editingHistoryFullIdx === fullIdx;
+              const pf = getPriceField(h);
+              const qf = getQtyField(h);
               return (
-                <div key={idx} className="flex items-center py-1 border-b border-dashed border-slate-100 dark:border-slate-800 last:border-0 min-w-0">
-                  <span className="text-slate-500 text-xs font-mono shrink-0 w-20">{h.date}</span>
-                  <span className="flex-1 truncate min-w-0 px-2 text-slate-600 dark:text-slate-300 text-xs">{label}</span>
-                  <span className={`font-mono text-xs shrink-0 ${isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{val > 0 ? '+' : ''}{val.toFixed(2)}</span>
+                <div key={fullIdx} className="flex items-center py-1 border-b border-dashed border-slate-100 dark:border-slate-800 last:border-0 min-w-0 gap-1">
+                  {isEditing ? (
+                    <>
+                      <input type="date" value={editForm.date} onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))} className="text-xs font-mono border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 w-28 bg-white dark:bg-slate-700 text-slate-800 dark:text-white shrink-0" />
+                      {qf && <input type="number" step="1" value={editForm.qty} onChange={e => setEditForm(f => ({ ...f, qty: e.target.value }))} className="text-xs font-mono border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 w-14 bg-white dark:bg-slate-700 text-slate-800 dark:text-white" placeholder="数量" />}
+                      {pf && <input type="number" step="0.01" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} className="text-xs font-mono border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 w-16 bg-white dark:bg-slate-700 text-slate-800 dark:text-white" placeholder="价格" />}
+                      <button onClick={saveHistoryEdit} className="p-1 rounded text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 shrink-0"><Check size={12} /></button>
+                      <button onClick={cancelHistoryEdit} className="p-1 rounded text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0"><X size={12} /></button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-slate-500 text-xs font-mono shrink-0 w-20">{h.date}</span>
+                      <span className="flex-1 truncate min-w-0 px-2 text-slate-600 dark:text-slate-300 text-xs">{label}</span>
+                      <span className={`font-mono text-xs shrink-0 ${isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{val > 0 ? '+' : ''}{val.toFixed(2)}</span>
+                      {onUpdateHistory && <button onClick={() => startHistoryEdit(fullIdx, h)} className="p-1 rounded text-slate-300 hover:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0"><Edit3 size={11} /></button>}
+                    </>
+                  )}
                 </div>
               );
             })}

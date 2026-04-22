@@ -399,6 +399,21 @@ export default function App() {
     } finally { setIsExecuting(false); }
   };
 
+  const handleUpdateHistory = async (position, fullHistoryIndex, updatedFields) => {
+    if (!user || !db) return;
+    const newHistory = [...(position.history || [])];
+    const entry = { ...newHistory[fullHistoryIndex], ...updatedFields };
+    if (entry.action === 'SELL' && entry.avgCostAfter != null) {
+      entry.realizedPnL = (parseFloat(entry.price) - parseFloat(entry.avgCostAfter)) * parseInt(entry.shares);
+    }
+    newHistory[fullHistoryIndex] = entry;
+    try {
+      await updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', position.id), { history: newHistory });
+    } catch (e) {
+      console.error('Failed to update history:', e);
+    }
+  };
+
   const openEdit = (item) => { setFormData({ ...item, id: item.id }); setShowAddModal(true); };
   const closeModal = () => { setShowAddModal(false); setFormData(EMPTY_FORM()); };
 
@@ -774,7 +789,7 @@ export default function App() {
                             }).map(item => {
                             const concentration = item.type === 'PUT' && item.direction === 'SELL' ? getTickerConcentration(item.ticker) : 0;
                             return (
-                              <ItemCard key={item.id} item={item} type={activeTab} onEdit={openEdit} onDelete={deleteItem} onExecute={() => setExecutionPlan(item)} onDirectAction={handleDirectAction} onReopen={handleReopen} onStockTrade={setStockTradePosition} concentration={concentration} strategyTag={getStrategyTag(item)} delta={deltaMap[item.id] ?? null} />
+                              <ItemCard key={item.id} item={item} type={activeTab} onEdit={openEdit} onDelete={deleteItem} onExecute={() => setExecutionPlan(item)} onDirectAction={handleDirectAction} onReopen={handleReopen} onStockTrade={setStockTradePosition} onUpdateHistory={handleUpdateHistory} concentration={concentration} strategyTag={getStrategyTag(item)} delta={deltaMap[item.id] ?? null} />
                             );
                           })}
                         </div>
@@ -802,6 +817,7 @@ export default function App() {
                       onDirectAction={handleDirectAction}
                       onReopen={handleReopen}
                       onStockTrade={setStockTradePosition}
+                      onUpdateHistory={handleUpdateHistory}
                       concentration={concentration}
                       strategyTag={getStrategyTag(item)}
                       delta={deltaMap[item.id] ?? null}
