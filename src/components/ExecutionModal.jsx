@@ -11,11 +11,13 @@ const ExecutionModal = ({ plan, onClose, onConfirm, isLoading = false }) => {
     strike: plan.newStrike || plan.strike,
     expiration: plan.newExpirationPeriod || plan.expiration,
     contractsToClose: totalContracts,
+    addContracts: 1,
   });
   const [validationError, setValidationError] = useState('');
 
   const isRoll = plan.actionCategory === 'ROLL';
   const isClose = plan.actionCategory === 'CLOSE';
+  const isAdd = plan.actionCategory === 'ADD';
   const isDirect = plan.isDirect;
 
   const handleConfirm = () => {
@@ -23,11 +25,15 @@ const ExecutionModal = ({ plan, onClose, onConfirm, isLoading = false }) => {
     if (!priceStr) { setValidationError('请输入价格'); return; }
     const priceNum = parseFloat(priceStr);
     if (isNaN(priceNum)) { setValidationError('价格必须是有效的数字'); return; }
+    if (isAdd) {
+      const ac = parseInt(execData.addContracts) || 0;
+      if (ac < 1) { setValidationError('加仓张数须至少为 1'); return; }
+    }
     if (isClose && plan.assetType !== 'STOCK') {
       const ctc = parseInt(execData.contractsToClose) || 0;
       if (ctc < 1 || ctc > totalContracts) { setValidationError(`平仓张数须在 1 ~ ${totalContracts} 之间`); return; }
     }
-    if (!isClose) {
+    if (!isClose && !isAdd) {
       if (!String(execData.strike || '').trim()) { setValidationError('请输入行权价'); return; }
       if (!String(execData.expiration || '').trim()) { setValidationError('请选择到期日'); return; }
     }
@@ -56,7 +62,7 @@ const ExecutionModal = ({ plan, onClose, onConfirm, isLoading = false }) => {
           <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-100 dark:border-slate-800 mb-4">
             <div className="text-xs font-bold uppercase text-slate-400 mb-1">执行操作 (Action)</div>
             <div className="font-medium text-slate-800 dark:text-white">
-              {plan.actionCategory === 'ROLL' ? '滚仓' : plan.actionCategory === 'CLOSE' ? '平仓' : '开仓'} {plan.ticker}
+              {plan.actionCategory === 'ROLL' ? '滚仓' : plan.actionCategory === 'CLOSE' ? '平仓' : plan.actionCategory === 'ADD' ? '加仓' : '开仓'} {plan.ticker}
               {isRoll && !isDirect && ` 至 ${plan.newStrike} (到期: ${plan.newExpirationPeriod || '?'})`}
             </div>
           </div>
@@ -76,6 +82,39 @@ const ExecutionModal = ({ plan, onClose, onConfirm, isLoading = false }) => {
                   <HelpCircle size={10} /> 负数(-) = Credit (收钱) | 正数(+) = Debit (付钱)
                 </p>
               </div>
+            ) : isAdd ? (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="加仓张数"
+                    type="number" step="1" min="1"
+                    value={execData.addContracts}
+                    onChange={e => setExecData({ ...execData, addContracts: e.target.value })}
+                    required
+                  />
+                  <Input
+                    label="加仓价格 (per share)"
+                    type="number" step="0.01"
+                    value={execData.price}
+                    onChange={e => setExecData({ ...execData, price: e.target.value })}
+                    placeholder="2.50"
+                    required
+                  />
+                </div>
+                {execData.price && execData.addContracts && (() => {
+                  const addC = parseInt(execData.addContracts) || 0;
+                  const addP = parseFloat(execData.price) || 0;
+                  const oldNetPerContract = (parseFloat(plan.entryPrice) || 0) + (parseFloat(plan.rollCredit) || 0) + (parseFloat(plan.costAdj) || 0);
+                  const newTotal = totalContracts + addC;
+                  const newAvg = (oldNetPerContract * totalContracts + addP * addC) / newTotal;
+                  return (
+                    <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 space-y-1">
+                      <div>当前成本: <span className="font-mono">${oldNetPerContract.toFixed(2)}/share × {totalContracts} 张</span></div>
+                      <div>加仓后均价: <span className="font-mono font-semibold text-slate-800 dark:text-white">${newAvg.toFixed(2)}/share × {newTotal} 张</span></div>
+                    </div>
+                  );
+                })()}
+              </>
             ) : (
               <>
                 <Input
@@ -105,7 +144,7 @@ const ExecutionModal = ({ plan, onClose, onConfirm, isLoading = false }) => {
               </>
             )}
 
-            {!isClose && (
+            {!isClose && !isAdd && (
               <div className="grid grid-cols-2 gap-4">
                 <Input
                   label={isRoll ? "新行权价" : "实际行权价"}

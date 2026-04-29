@@ -391,6 +391,23 @@ export default function App() {
           const basisAdj = pos.direction === 'SELL' ? -1 * rollInputPrice : rollInputPrice;
           await updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', pos.id), { strike: parseFloat(execData.strike), expiration: execData.expiration, rollCredit: (parseFloat(pos.rollCredit) || 0) + basisAdj, history: [{ date: today, action: 'ROLL', oldStrike: pos.strike, oldExpiration: pos.expiration, rollPrice: rollInputPrice, snapshotEntryPrice: pos.entryPrice, newStrike: parseFloat(execData.strike), newExpiration: execData.expiration }, ...(pos.history || [])] });
         }
+      } else if (plan.actionCategory === 'ADD') {
+        const pos = positions.find(p => p.id === plan.selectedPositionId);
+        if (pos) {
+          const addContracts = parseInt(execData.addContracts) || 1;
+          const addPrice = parseFloat(execData.price);
+          const oldContracts = parseInt(pos.contracts) || 1;
+          const newTotalContracts = oldContracts + addContracts;
+          const oldNetPerContract = (parseFloat(pos.entryPrice) || 0) + (parseFloat(pos.rollCredit) || 0) + (parseFloat(pos.costAdj) || 0);
+          const newEntryPrice = parseFloat(((oldNetPerContract * oldContracts + addPrice * addContracts) / newTotalContracts).toFixed(4));
+          await updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'positions', pos.id), {
+            contracts: newTotalContracts,
+            entryPrice: newEntryPrice,
+            rollCredit: 0,
+            costAdj: 0,
+            history: [{ date: today, action: '增持', contracts: addContracts, price: addPrice, avgAfter: newEntryPrice, prevEntryPrice: parseFloat(pos.entryPrice) || 0, prevContracts: oldContracts }, ...(pos.history || [])],
+          });
+        }
       }
       if (!plan.isDirect && plan.id) await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'plans', plan.id));
       setExecutionPlan(null);

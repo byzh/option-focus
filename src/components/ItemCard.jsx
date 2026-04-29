@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Archive, AlertTriangle, RefreshCw, StopCircle,
-  History, ChevronUp, Edit3, Trash2, CheckSquare, ArrowRight, RotateCcw, CheckCircle2, ShoppingCart, Check, X
+  History, ChevronUp, Edit3, Trash2, CheckSquare, ArrowRight, RotateCcw, CheckCircle2, ShoppingCart, Check, X, PlusCircle
 } from 'lucide-react';
 import { calcNetBasis, calcFinalPnL, calcBreakEven, calcStockPnL, calcStockTotalRealizedPnL } from '../calc';
 import { assessLeapsHealth } from '../utils/leapsHealth';
@@ -276,6 +276,9 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
             <div className="flex gap-1">
               {!isClosed && !isExpired && (
                 <button onClick={() => onDirectAction(item, 'ROLL')} className="p-1.5 text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 rounded hover:bg-yellow-100" title="滚仓 (Roll)"><RefreshCw size={16} /></button>
+              )}
+              {!isClosed && !isExpired && (
+                <button onClick={() => onDirectAction(item, 'ADD')} className="p-1.5 text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 rounded hover:bg-emerald-100" title="加仓"><PlusCircle size={16} /></button>
               )}
               {!isClosed && (
                 <button onClick={() => onDirectAction(item, 'CLOSE')} className="p-1.5 text-orange-500 bg-orange-50 dark:bg-orange-900/20 rounded hover:bg-orange-100" title="平仓 (Close)"><StopCircle size={16} /></button>
