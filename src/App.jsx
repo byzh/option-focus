@@ -722,7 +722,7 @@ export default function App() {
                       {[...closedPositions].sort((a, b) => a.ticker.localeCompare(b.ticker)).map(p => {
                         const pnl = calculateFinalPnL(p) || 0;
                         const isPos = pnl >= 0;
-                        const isExpired = p.status !== 'CLOSED' && isExpired(p.expiration);
+                        const isUnclosedExpired = p.status !== 'CLOSED' && isExpired(p.expiration);
                         return (
                           <div key={p.id} className="flex items-center justify-between px-4 py-2 text-sm">
                             <div className="flex items-center gap-3">
@@ -730,7 +730,7 @@ export default function App() {
                               {p.assetType === 'STOCK'
                                 ? <span className="text-slate-500 dark:text-slate-400">STOCK</span>
                                 : <span className="text-slate-500 dark:text-slate-400">${parseFloat(p.strike).toFixed(0)} {p.type} {p.expiration}</span>}
-                              {isExpired && <span className="text-[10px] px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded">过期</span>}
+                              {isUnclosedExpired && <span className="text-[10px] px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded">过期</span>}
                             </div>
                             <span className={`font-mono font-semibold ${isPos ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                               {isPos ? '+' : '-'}${Math.abs(pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

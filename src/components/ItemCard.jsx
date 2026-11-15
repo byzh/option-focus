@@ -335,7 +335,7 @@ function ItemCard({ item, type, onEdit, onDelete, onExecute, onDirectAction, onR
                     <>
                       <span className="text-slate-500 text-xs font-mono shrink-0 w-20">{h.date}</span>
                       <span className="flex-1 truncate min-w-0 px-2 text-slate-600 dark:text-slate-300 text-xs">{label}</span>
-                      <span className={`font-mono text-xs shrink-0 ${isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{val > 0 ? '+' : ''}{val.toFixed(2)}</span>
+                      <span className={`font-mono text-xs shrink-0 ${isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{val > 0 ? '+' : ''}{(parseFloat(val) || 0).toFixed(2)}</span>
                       {onUpdateHistory && <button onClick={() => startHistoryEdit(fullIdx, h)} className="p-1 rounded text-slate-300 hover:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0"><Edit3 size={11} /></button>}
                     </>
                   )}

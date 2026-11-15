@@ -16,6 +16,9 @@ dist-ssr
 .env
 .env.local
 
+# Credentials
+*service-account*.json
+
 # Claude CLI — ignore local/personal settings, commit shared config
 .claude/settings.local.json
 .claude/todos/
