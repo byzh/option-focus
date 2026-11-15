@@ -24,6 +24,15 @@ export const isExpired = (expirationDate) => {
   return now > exp;
 };
 
+/** Returns true if dateStr (YYYY-MM-DD) is the 3rd Friday of its month */
+export const isMonthlyExpiration = (dateStr) => {
+  if (!dateStr) return false;
+  const d = new Date(dateStr + 'T12:00:00');
+  if (d.getDay() !== 5) return false;
+  const day = d.getDate();
+  return day >= 15 && day <= 21;
+};
+
 /**
  * Days to expiration from today (local midnight). Returns null for empty input.
  * Positive = future, 0 = today, negative = past.

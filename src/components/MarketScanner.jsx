@@ -13,7 +13,9 @@ import { useSkewHistory } from '../hooks/useSkewHistory';
 import { useSkewAutoJob } from '../hooks/useSkewAutoJob';
 import { useVix } from '../hooks/useVix';
 import { DEFAULT_SYMBOLS } from '../data/defaultSymbols';
-import { callTastytradeApi } from '../utils/apiClient';
+import { fetchUnderlyingPrice as fetchUnderlyingPriceApi } from '../utils/marketData';
+import { isMonthlyExpiration } from '../utils/dateUtils';
+import OptionQuoteTable from './OptionQuoteTable';
 
 const APP_ID = 'option-focus-v2';
 
@@ -27,15 +29,6 @@ const VIX_ZONES = [
 
 function getVixZoneIndex(v) {
   return VIX_ZONES.findIndex(z => v < z.max);
-}
-
-/** Returns true if dateStr (YYYY-MM-DD) is the 3rd Friday of its month */
-function isMonthlyExpiration(dateStr) {
-  if (!dateStr) return false;
-  const d = new Date(dateStr + 'T12:00:00');
-  if (d.getDay() !== 5) return false; // not a Friday
-  const day = d.getDate();
-  return day >= 15 && day <= 21;
 }
 
 export default function MarketScanner({ user, db }) {
@@ -142,12 +135,8 @@ export default function MarketScanner({ user, db }) {
   // Fetch underlying equity price
   const fetchUnderlyingPrice = useCallback(async (symbol) => {
     try {
-      const response = await callTastytradeApi(user, '/market-data/by-type', { equity: symbol });
-      const items = response.data?.items || [];
-      const equity = items.find(i => i.symbol === symbol);
-      if (equity) {
-        setUnderlyingPrice(parseFloat(equity.mark || equity.last || equity.close) || null);
-      }
+      const price = await fetchUnderlyingPriceApi(user, symbol);
+      if (price != null) setUnderlyingPrice(price);
     } catch (e) {
       console.warn('Failed to fetch underlying price:', e);
     }
@@ -502,6 +491,7 @@ export default function MarketScanner({ user, db }) {
                       <tr>
                         <td colSpan={7} className="bg-slate-50/50 dark:bg-slate-900/50 px-3 py-3">
                           <OptionChainDetail
+                            user={user}
                             symbol={sym}
                             chainData={chainData}
                             chainLoading={chainLoading}
@@ -575,7 +565,7 @@ function VixBar({ vix, loading, error }) {
 
 // Option chain detail sub-component
 function OptionChainDetail({
-  symbol, chainData, chainLoading, chainError,
+  user, symbol, chainData, chainLoading, chainError,
   selectedExpIdx, onSelectExp, onRefreshOI,
   skewHistory, skewLoading, skewError,
   oiData, oiLoading, oiError,
@@ -621,6 +611,16 @@ function OptionChainDetail({
           );
         })}
       </div>
+
+      {/* Live option quotes for selected expiration */}
+      {selExp && (
+        <OptionQuoteTable
+          key={selExp['expiration-date']}
+          user={user}
+          expiration={selExp}
+          underlyingPrice={underlyingPrice}
+        />
+      )}
 
       {/* OI Wall for selected expiration */}
       {selExp && (

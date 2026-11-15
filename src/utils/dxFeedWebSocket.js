@@ -4,7 +4,7 @@ import { callTastytradeApi } from './apiClient';
 let _tokenCache = null; // { token, wsUrl, expiresAt }
 const TOKEN_TTL_MS = 50 * 60 * 1000; // 50 minutes
 
-async function getQuoteToken(user) {
+export async function getQuoteToken(user) {
   const now = Date.now();
   if (_tokenCache && _tokenCache.uid === user.uid && now < _tokenCache.expiresAt) return _tokenCache;
   const resp = await callTastytradeApi(user, '/api-quote-tokens');

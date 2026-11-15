@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Wifi, WifiOff, Loader2, AlertTriangle, ChevronUp, BookOpen, ExternalLink } from 'lucide-react';
 import MarketScanner from './MarketScanner';
+import OptionChainLookup from './OptionChainLookup';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import Card from './ui/Card';
 import Button from './ui/Button';
@@ -451,7 +452,10 @@ function MonitorTab({ user, db }) {
 
       {/* Market Scanner — shown when connected (non-demo) */}
       {status === 'connected' && !sessionData?.isDemoMode && (
-        <MarketScanner user={user} db={db} />
+        <>
+          <OptionChainLookup user={user} db={db} />
+          <MarketScanner user={user} db={db} />
+        </>
       )}
     </div>
   );
