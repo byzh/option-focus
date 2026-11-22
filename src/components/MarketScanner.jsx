@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import {
   ScanSearch, Filter, RefreshCw, Loader2, ChevronDown,
-  Square, Settings2, RotateCcw, TrendingUp, ChevronRight, ArrowUp, ArrowDown, RotateCw,
+  Square, Settings2, RotateCcw, TrendingUp, ChevronRight, ArrowUp, ArrowDown, RotateCw, FlaskConical,
 } from 'lucide-react';
+import { LazyBacktestPanel, BacktestErrorBoundary } from '../features/backtest';
 import Card from './ui/Card';
 import Button from './ui/Button';
 import { useMarketScanner } from '../hooks/useMarketScanner';
@@ -41,6 +42,7 @@ export default function MarketScanner({ user, db }) {
   const [filters, setFilters] = useState({ minIVR: 50, minIVX: 50, minLiquidity: null });
   const [showFilters, setShowFilters] = useState(false);
   const [forceRefresh, setForceRefresh] = useState(false);
+  const [showBacktest, setShowBacktest] = useState(false);
 
   // Scanner hook
   const { scanState, progress, results, allMetrics, scanError, scan, refilter, abort } = useMarketScanner({ user, db });
@@ -254,6 +256,13 @@ export default function MarketScanner({ user, db }) {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setShowBacktest(true)}
+            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"
+            title="策略回测"
+          >
+            <FlaskConical size={16} />
+          </button>
+          <button
             onClick={() => setShowFilters(!showFilters)}
             className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"
             title="筛选条件"
@@ -272,6 +281,15 @@ export default function MarketScanner({ user, db }) {
           </button>
         </div>
       </div>
+
+      {/* Backtest (isolated: lazy-loaded, wrapped in its own error boundary) */}
+      {showBacktest && (
+        <BacktestErrorBoundary onClose={() => setShowBacktest(false)}>
+          <Suspense fallback={null}>
+            <LazyBacktestPanel user={user} symbols={symbols} onClose={() => setShowBacktest(false)} />
+          </Suspense>
+        </BacktestErrorBoundary>
+      )}
 
       {/* VIX Bar — mobile only */}
       <div className="sm:hidden">
