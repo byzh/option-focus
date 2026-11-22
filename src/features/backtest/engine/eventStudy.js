@@ -10,18 +10,18 @@ export function jumpPrefix(candles, thresholdPct) {
   return prefix;
 }
 
-function hasJump(prefix, from, to) {
+export function hasJump(prefix, from, to) {
   const a = Math.max(1, from);
   const b = Math.min(prefix.length - 1, to);
   if (b < a) return false;
   return prefix[b] - prefix[a - 1] > 0;
 }
 
-function inDateRange(date, { startDate, endDate }) {
+export function inDateRange(date, { startDate, endDate }) {
   return (!startDate || date >= startDate) && (!endDate || date <= endDate);
 }
 
-function entryOf(candles, i, nextOpen) {
+export function entryOf(candles, i, nextOpen) {
   if (nextOpen) {
     const bar = candles[i + 1];
     return bar ? { price: bar.open, date: bar.date, field: 'open' } : null;
@@ -35,7 +35,7 @@ export function buildBenchmark(candles) {
   return { candles, byDate: new Map(candles.map((c, i) => [c.date, i])) };
 }
 
-function benchmarkReturn(bench, entryDate, entryField, exitDate) {
+export function benchmarkReturn(bench, entryDate, entryField, exitDate) {
   if (!bench) return null;
   const a = bench.byDate.get(entryDate);
   const b = bench.byDate.get(exitDate);

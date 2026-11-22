@@ -108,6 +108,9 @@ function SymbolTable({ report }) {
       if (sort.key === 'symbol') return r.symbol;
       if (sort.key === 'nSignals') return r.nSignals;
       if (sort.key === 'lastSignalDate') return r.lastSignalDate ?? '';
+      if (sort.key === 'tradeN') return r.trade?.n ?? -Infinity;
+      if (sort.key === 'tradeWin') return r.trade?.winRate ?? -Infinity;
+      if (sort.key === 'tradeMean') return r.trade?.mean ?? -Infinity;
       const s = r.byHorizon[horizon];
       return s?.[sort.key] ?? -Infinity;
     };
@@ -142,7 +145,7 @@ function SymbolTable({ report }) {
         </select>
       </div>
       <div className={`${tableWrap} max-h-[420px] overflow-y-auto`}>
-        <table className="w-full text-xs min-w-[560px]">
+        <table className={`w-full text-xs ${report.trades ? 'min-w-[760px]' : 'min-w-[560px]'}`}>
           <thead className={`${headRow} sticky top-0`}>
             <tr>
               {header('symbol', '标的', true)}
@@ -151,6 +154,9 @@ function SymbolTable({ report }) {
               {header('mean', '平均收益')}
               {header('median', '中位数')}
               {header('lastSignalDate', '最近信号')}
+              {report.trades && header('tradeN', '交易数')}
+              {report.trades && header('tradeWin', '交易胜率')}
+              {report.trades && header('tradeMean', '交易平均')}
               <th className={th}>数据区间</th>
             </tr>
           </thead>
@@ -165,6 +171,9 @@ function SymbolTable({ report }) {
                   <td className={`${td} ${tone(s?.mean)}`}>{fmtPct(s?.mean)}</td>
                   <td className={`${td} ${tone(s?.median)}`}>{fmtPct(s?.median)}</td>
                   <td className={td}>{r.lastSignalDate ?? '—'}</td>
+                  {report.trades && <td className={td}>{r.trade?.n ?? 0}</td>}
+                  {report.trades && <td className={td}>{fmtPct(r.trade?.winRate, 1)}</td>}
+                  {report.trades && <td className={`${td} ${tone(r.trade?.mean)}`}>{fmtPct(r.trade?.mean)}</td>}
                   <td className={`${td} text-slate-400`}>{r.firstDate} ~ {r.lastDate}</td>
                 </tr>
               );
@@ -207,16 +216,94 @@ function RecentSignals({ report }) {
   );
 }
 
+function StatCard({ label, value, sub, valueClass = '' }) {
+  return (
+    <div className="border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2">
+      <div className="text-[10px] text-slate-400">{label}</div>
+      <div className={`text-sm font-semibold text-slate-800 dark:text-slate-100 tabular-nums ${valueClass}`}>{value}</div>
+      {sub && <div className="text-[10px] text-slate-400 tabular-nums">{sub}</div>}
+    </div>
+  );
+}
+
+function TradeStats({ trades }) {
+  const s = trades.summary;
+  const edge = s.winRate != null && s.baseWinRate != null ? s.winRate - s.baseWinRate : null;
+  const num = (v, d = 2) => (v == null || !Number.isFinite(v) ? '—' : v.toFixed(d));
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <StatCard label="交易数" value={s.n} />
+        <StatCard
+          label="胜率"
+          value={fmtPct(s.winRate, 1)}
+          sub={`基准 ${fmtPct(s.baseWinRate, 1)}，差 ${edge == null ? '—' : `${edge > 0 ? '+' : ''}${(edge * 100).toFixed(1)}`}`}
+        />
+        <StatCard label="平均收益 / 笔" value={fmtPct(s.mean)} valueClass={tone(s.mean)} sub={`基准 ${fmtPct(s.baseMean)}`} />
+        <StatCard label="中位数" value={fmtPct(s.median)} valueClass={tone(s.median)} />
+        <StatCard label="平均盈利 / 平均亏损" value={`${fmtPct(s.avgWin)} / ${fmtPct(s.avgLoss)}`} />
+        <StatCard label="盈亏比 / 利润因子" value={`${num(s.payoff)} / ${num(s.profitFactor)}`} sub="利润因子 = 总盈利 ÷ 总亏损，>1 才赚钱" />
+        <StatCard label="平均持有" value={`${num(s.avgHold, 1)} 日`} />
+        <StatCard label="跑赢 SPY / 平均超额" value={`${fmtPct(s.beatRate, 1)} / ${fmtPct(s.excessMean)}`} valueClass={tone(s.excessMean)} />
+      </div>
+      <div className="text-[10px] text-slate-400">
+        基准 = 在任意一天按同样入场方式买入、持有与每笔交易相同天数的结果（逐笔匹配后平均）。
+        {trades.excluded > 0 && ` ${trades.excluded} 笔因疑似拆股被剔除。`}
+        {trades.open > 0 && ` ${trades.open} 笔尚未离场，未计入。`}
+      </div>
+    </div>
+  );
+}
+
+function RecentTrades({ trades }) {
+  return (
+    <div className={`${tableWrap} max-h-[360px] overflow-y-auto`}>
+      <table className="w-full text-xs min-w-[520px]">
+        <thead className={`${headRow} sticky top-0`}>
+          <tr>
+            <th className={`${th} text-left`}>信号日</th>
+            <th className={`${th} text-left`}>标的</th>
+            <th className={th}>入场</th>
+            <th className={th}>离场日</th>
+            <th className={th}>离场</th>
+            <th className={th}>持有</th>
+            <th className={th}>收益</th>
+          </tr>
+        </thead>
+        <tbody>
+          {trades.recent.map(t => (
+            <tr key={`${t.symbol}-${t.date}`} className={bodyRow}>
+              <td className={`${td} text-left`}>{t.date}</td>
+              <td className={`${td} text-left font-medium`}>{t.symbol}</td>
+              <td className={td}>{t.entryPrice.toFixed(2)}</td>
+              <td className={td}>{t.exitDate}</td>
+              <td className={td}>{t.exitPrice.toFixed(2)}</td>
+              <td className={td}>{t.holdBars} 日</td>
+              <td className={`${td} ${tone(t.ret)}`}>{fmtPct(t.ret)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function BacktestResults({ report }) {
   return (
     <div className="space-y-5">
       <div className="text-xs text-slate-500 dark:text-slate-400">
-        测试 {report.symbolsTested} 个标的，共 {report.totalSignals} 个信号
+        {report.strategyName}：测试 {report.symbolsTested} 个标的，共 {report.totalSignals} 个信号
         {report.excluded > 0 && `，另有 ${report.excluded} 个因疑似拆股跳变被剔除`}
         {!report.hasBenchmark && '（未取到 SPY，无法计算超额收益）'}
       </div>
 
-      <Section title="持有期收益" note="基准 = 同样入场规则下所有交易日的无条件结果；胜率括号内为相对基准的百分点差">
+      {report.trades && (
+        <Section title="交易模拟（按策略离场规则）" note="每个标的同一时间只持有一笔">
+          <TradeStats trades={report.trades} />
+        </Section>
+      )}
+
+      <Section title={report.trades ? '固定持有期收益（不使用离场规则）' : '持有期收益'} note="基准 = 同样入场规则下所有交易日的无条件结果；胜率括号内为相对基准的百分点差">
         <HorizonTable report={report} />
       </Section>
 
@@ -227,6 +314,12 @@ export default function BacktestResults({ report }) {
       <Section title="分标的" note="点击表头排序">
         <SymbolTable report={report} />
       </Section>
+
+      {report.trades && (
+        <Section title="最近交易" note="最多 100 笔">
+          <RecentTrades trades={report.trades} />
+        </Section>
+      )}
 
       <Section title="最近信号" note="最多 100 条；近期信号的远期收益尚未发生，显示为 —">
         <RecentSignals report={report} />

@@ -64,6 +64,14 @@ export const pocketPivot = {
   id: 'pocket-pivot',
   name: 'Pocket Pivot',
   description: '收涨日成交量超过前 N 日最大下跌日成交量，可叠加趋势与追高过滤。',
+  help: [
+    '1. 当日收涨，且涨幅大于"最小涨幅"。',
+    '2. 当日成交量 > 前 N 日（下跌日回看天数）里所有下跌日中最大的成交量 × 量能倍数。含义：今天买方的力量超过了最近卖方最用力的一天。',
+    '3. 可选：收盘在趋势均线之上（处于上升趋势）。',
+    '4. 可选：收盘不高于短均线一定比例（不是已经涨飞了才追）。',
+    '5. 同一标的在冷却天数内只算一次。',
+    '该策略没有离场规则，只看固定持有期结果。',
+  ],
   paramSchema,
   defaultParams: defaultsFromSchema(paramSchema),
   /** Bars before the signal that the rule depends on (used by the split guard). */

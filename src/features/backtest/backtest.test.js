@@ -268,3 +268,97 @@ describe('describeServerError', () => {
     expect(describeServerError({ message: 'x'.repeat(500) })).toHaveLength(200);
   });
 });
+
+describe('rsi', () => {
+  it('matches Wilder RSI on a known sequence', async () => {
+    const { rsi } = await import('./engine/indicators');
+    const r = rsi([10, 11, 10, 9, 10], 2);
+    expect(r[0]).toBeNull();
+    expect(r[1]).toBeNull();
+    // first: gains 1, losses 1 -> 50
+    expect(r[2]).toBeCloseTo(50);
+    // gain=(0.5*1+0)/2=0.25, loss=(0.5*1+1)/2=0.75 -> 25
+    expect(r[3]).toBeCloseTo(25);
+    // gain=(0.25+1)/2=0.625, loss=0.375 -> 62.5
+    expect(r[4]).toBeCloseTo(62.5);
+  });
+
+  it('returns 100 when there are no losses', async () => {
+    const { rsi } = await import('./engine/indicators');
+    expect(rsi([1, 2, 3, 4], 2)[3]).toBe(100);
+  });
+});
+
+describe('rsi2Pullback', () => {
+  const P = async () => (await import('./strategies/rsi2Pullback')).rsi2Pullback;
+  // rising trend, a three-day dip, then recovery
+  const closes = [10, 11, 12, 13, 14, 15, 16, 14, 12, 10, 13, 15, 16];
+
+  it('signals on oversold RSI and the trend filter only removes signals', async () => {
+    const s = await P();
+    const c = bars(closes.map(x => [x, 100]));
+    const p = { ...s.defaultParams, useTrendFilter: false };
+    const sig = s.detect(c, p);
+    expect(sig).toEqual([9]);
+    const withTrend = s.detect(c, { ...p, useTrendFilter: true, trendMaPeriod: 3 });
+    expect(withTrend.every(i => sig.includes(i))).toBe(true);
+    expect(withTrend).toEqual([]); // 10 is below its 3-day MA
+  });
+
+  it('exits on the first close above the exit MA or at max hold', async () => {
+    const s = await P();
+    const c = bars(closes.map(x => [x, 100]));
+    const exit = s.makeExitRule(c, { ...s.defaultParams, exitMaPeriod: 3, maxHoldDays: 10 });
+    expect(exit(9)).toBe(10); // 13 > mean(12, 10, 13)
+    const timed = s.makeExitRule(c, { ...s.defaultParams, exitMaPeriod: 50, maxHoldDays: 2 });
+    expect(timed(9)).toBe(11);
+    expect(timed(12)).toBeNull();
+  });
+});
+
+describe('simulateTrades', () => {
+  it('skips signals while a trade is open and records returns', async () => {
+    const { simulateTrades } = await import('./engine/tradeSim');
+    const c = bars([[10, 1], [10, 1, 9, 10, 10], [11, 1, 10, 11, 10], [12, 1], [13, 1], [12, 1]]);
+    const exitRule = (i) => Math.min(i + 2, c.length - 1);
+    const params = { ...DEFAULT_EVAL_PARAMS, startDate: '', endDate: '' };
+    const { trades } = simulateTrades({ candles: c, signals: [0, 1, 2, 3], exitRule, benchmark: null, params });
+    // signal 0: entry open[1]=10, exit close[2]=11; signals 1,2 skipped (<= busyUntil 2); signal 3: entry open[4]=13, exit close[5]=12
+    expect(trades.map(t => t.date)).toEqual([c[0].date, c[3].date]);
+    expect(trades[0].ret).toBeCloseTo(0.1);
+    expect(trades[0].holdBars).toBe(2);
+    expect(trades[1].ret).toBeCloseTo(12 / 13 - 1);
+  });
+
+  it('summarizes trades with a holding-matched baseline', async () => {
+    const { summarizeTrades } = await import('./engine/aggregate');
+    const s = summarizeTrades(
+      [{ ret: 0.02, holdBars: 2, excess: 0.01 }, { ret: -0.04, holdBars: 3, excess: -0.03 }, { ret: 0.01, holdBars: 2, excess: 0 }],
+      { 2: { n: 10, wins: 6, sum: 0.1 }, 3: { n: 10, wins: 5, sum: 0 } },
+    );
+    expect(s.n).toBe(3);
+    expect(s.winRate).toBeCloseTo(2 / 3);
+    expect(s.profitFactor).toBeCloseTo(0.03 / 0.04);
+    expect(s.payoff).toBeCloseTo(0.015 / 0.04);
+    expect(s.baseWinRate).toBeCloseTo((0.6 + 0.5 + 0.6) / 3);
+  });
+});
+
+describe('runBacktest with an exit-rule strategy', () => {
+  it('adds a trade report', async () => {
+    const { rsi2Pullback } = await import('./strategies/rsi2Pullback');
+    const rows = [];
+    for (let i = 0; i < 300; i++) rows.push([100 + i * 0.3 + (i % 5 === 3 ? -9 : 0), 1000]);
+    const data = new Map([['AAA', bars(rows)], ['SPY', bars(rows)]]);
+    const { values: evalParams } = validateParams(EVAL_PARAM_SCHEMA, toFormValues(EVAL_PARAM_SCHEMA, DEFAULT_EVAL_PARAMS));
+    const report = runBacktest({
+      strategy: rsi2Pullback,
+      strategyParams: { ...rsi2Pullback.defaultParams, trendMaPeriod: 50 },
+      evalParams, data, symbols: ['AAA'],
+    });
+    expect(report.trades).not.toBeNull();
+    expect(report.trades.summary.n).toBeGreaterThan(0);
+    expect(report.trades.summary.baseWinRate).not.toBeNull();
+    expect(report.bySymbol[0].trade.n).toBe(report.trades.summary.n);
+  });
+});

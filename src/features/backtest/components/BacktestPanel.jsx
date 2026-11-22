@@ -184,7 +184,7 @@ export default function BacktestPanel({ user, symbols, onClose }) {
 
         <div className="overflow-y-auto p-4 space-y-4">
           <p className="text-xs text-slate-500 dark:text-slate-400">{strategy.description}</p>
-          <HelpSection />
+          <HelpSection strategy={strategy} />
 
           {/* Data */}
           <Block title={`数据（${testSymbols.length} 个标的 + ${BENCHMARK_SYMBOL} 基准，仅存于本页内存）`}>

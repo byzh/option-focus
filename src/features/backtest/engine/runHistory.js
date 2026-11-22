@@ -50,5 +50,17 @@ export function makeRunRecord({ id, at, strategy, strategyParams, evalParams, ev
     totalSignals: report.totalSignals,
     horizons: report.horizons,
     edges,
+    trade: report.trades
+      ? (() => {
+        const s = report.trades.summary;
+        return {
+          n: s.n,
+          winRate: s.winRate,
+          winEdge: s.winRate != null && s.baseWinRate != null ? s.winRate - s.baseWinRate : null,
+          mean: s.mean,
+          profitFactor: s.profitFactor,
+        };
+      })()
+      : null,
   };
 }

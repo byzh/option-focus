@@ -6,7 +6,7 @@ function P({ children }) {
 }
 
 /** Collapsible plain-language guide to what the backtest measures and how to read it. */
-export default function HelpSection() {
+export default function HelpSection({ strategy }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="border border-slate-200 dark:border-slate-700 rounded-lg">
@@ -26,17 +26,14 @@ export default function HelpSection() {
           </div>
 
           <div className="space-y-1">
-            <div className="font-semibold text-slate-700 dark:text-slate-200">Pocket Pivot 信号（同时满足）</div>
-            <P>1. 当日收涨，且涨幅大于"最小涨幅"。</P>
-            <P>2. 当日成交量 &gt; 前 N 日（下跌日回看天数）里所有下跌日中最大的成交量 × 量能倍数。含义：今天买方的力量超过了最近卖方最用力的一天。</P>
-            <P>3. 可选：收盘在趋势均线之上（处于上升趋势）。</P>
-            <P>4. 可选：收盘不高于短均线一定比例（不是已经涨飞了才追）。</P>
-            <P>5. 同一标的在冷却天数内只算一次。</P>
+            <div className="font-semibold text-slate-700 dark:text-slate-200">当前策略：{strategy.name}</div>
+            {(strategy.help ?? [strategy.description]).map(line => <P key={line}>{line}</P>)}
           </div>
 
           <div className="space-y-1">
             <div className="font-semibold text-slate-700 dark:text-slate-200">怎么模拟买卖</div>
-            <P>默认信号次日开盘买入，分别看持有 1/5/10/20/60 个交易日后的收盘价。不设止损止盈，只看到期结果。所有标的、所有历史信号汇总统计。</P>
+            <P>固定持有期：默认信号次日开盘买入，分别看持有 1/5/10/20/60 个交易日后的收盘价，不设止损止盈。</P>
+            <P>交易模拟（仅限有离场规则的策略，如 RSI(2)）：按策略自己的离场规则平仓，每个标的同一时间只持有一笔，统计胜率、盈亏比、利润因子和平均持有天数；基准是持有相同天数的随机入场结果。</P>
           </div>
 
           <div className="space-y-1">

@@ -44,6 +44,49 @@ export function summarizePullback(events) {
   };
 }
 
+/**
+ * Trade-level statistics. `baseAcc` holds unconditional results per holding
+ * length, so the baseline is matched to the trades' own holding periods.
+ */
+export function summarizeTrades(trades, baseAcc) {
+  const rets = trades.map(t => t.ret);
+  const wins = rets.filter(r => r > 0);
+  const losses = rets.filter(r => r <= 0);
+  const sumWin = wins.reduce((a, b) => a + b, 0);
+  const sumLoss = losses.reduce((a, b) => a + b, 0);
+  const avgWin = mean(wins);
+  const avgLoss = mean(losses);
+  const exc = summarizeReturns(trades.map(t => t.excess));
+  const ret = summarizeReturns(rets);
+
+  let baseWin = 0;
+  let baseMean = 0;
+  let matched = 0;
+  for (const t of trades) {
+    const a = baseAcc?.[t.holdBars];
+    if (!a?.n) continue;
+    baseWin += a.wins / a.n;
+    baseMean += a.sum / a.n;
+    matched++;
+  }
+
+  return {
+    n: trades.length,
+    winRate: ret.winRate,
+    mean: ret.mean,
+    median: ret.median,
+    avgWin,
+    avgLoss,
+    payoff: avgWin != null && avgLoss != null && avgLoss !== 0 ? avgWin / Math.abs(avgLoss) : null,
+    profitFactor: sumLoss < 0 ? sumWin / Math.abs(sumLoss) : null,
+    avgHold: mean(trades.map(t => t.holdBars)),
+    excessMean: exc.mean,
+    beatRate: exc.winRate,
+    baseWinRate: matched ? baseWin / matched : null,
+    baseMean: matched ? baseMean / matched : null,
+  };
+}
+
 export function summarizeBaseline(acc, horizons) {
   return horizons.map(h => {
     const a = acc[h] ?? { n: 0, wins: 0, sum: 0 };

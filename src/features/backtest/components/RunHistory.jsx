@@ -24,13 +24,14 @@ const td = 'px-2 py-1.5 text-right tabular-nums whitespace-nowrap align-top';
 export default function RunHistory({ runs, onRestore, onClear }) {
   if (!runs.length) return null;
   const horizons = [...new Set(runs.flatMap(r => r.horizons))].sort((a, b) => a - b);
+  const anyTrade = runs.some(r => r.trade);
 
   return (
     <div className="space-y-2">
       <div className="flex items-baseline justify-between gap-2">
         <div className="flex items-baseline gap-2">
           <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-200">参数对比</h4>
-          <span className="text-[10px] text-slate-400">每格：胜率差（百分点）/ 平均超额 SPY；最新在上</span>
+          <span className="text-[10px] text-slate-400">持有期每格：胜率差（百分点）/ 平均超额 SPY；最新在上</span>
         </div>
         <button onClick={onClear} className="text-[10px] text-slate-400 hover:text-red-500">清空</button>
       </div>
@@ -41,6 +42,7 @@ export default function RunHistory({ runs, onRestore, onClear }) {
               <th className={`${th} text-left`}>#</th>
               <th className={`${th} text-left`}>参数（相对默认值的改动）</th>
               <th className={th}>信号</th>
+              {anyTrade && <th className={th}>交易（胜率 / 差 / 平均）</th>}
               {horizons.map(h => <th key={h} className={th}>{h} 日</th>)}
               <th className={th}></th>
             </tr>
@@ -57,6 +59,17 @@ export default function RunHistory({ runs, onRestore, onClear }) {
                   {r.changes.length ? r.changes.join('，') : <span className="text-slate-400">默认参数</span>}
                 </td>
                 <td className={td}>{r.totalSignals}</td>
+                {anyTrade && (
+                  <td className={td}>
+                    {r.trade ? (
+                      <>
+                        <span className="font-semibold">{r.trade.winRate == null ? '—' : `${(r.trade.winRate * 100).toFixed(1)}%`}</span>
+                        <span className={`ml-1 ${tone(r.trade.winEdge)}`}>{pts(r.trade.winEdge)}</span>
+                        <div className={`text-[10px] ${tone(r.trade.mean)}`}>{pct(r.trade.mean)} · {r.trade.n} 笔</div>
+                      </>
+                    ) : <span className="text-slate-400">—</span>}
+                  </td>
+                )}
                 {horizons.map(h => {
                   const e = r.edges[h];
                   if (!e) return <td key={h} className={`${td} text-slate-400`}>—</td>;
