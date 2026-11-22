@@ -94,51 +94,70 @@ function abortError() {
   return e;
 }
 
+/** Server-provided error text, reduced to a short plain string (never echoes the request). */
+export function describeServerError(msg) {
+  const parts = [msg?.error, msg?.message].filter(v => typeof v === 'string' && v.trim());
+  return parts.length ? parts.join(': ').slice(0, 200) : '未知错误';
+}
+
 /**
  * One WebSocket connection for one batch of symbols.
- * Resolves when every symbol reported SNAPSHOT_END/SNIP, or after an idle gap.
+ * Never rejects except on abort: failures are reported through `diag`.
+ *
+ * Timing: waits up to firstDataMs for the first candle, then finishes after
+ * idleMs without new data, when every symbol reported SNAPSHOT_END/SNIP,
+ * or at hardMs.
  */
-function fetchBatch({ token, wsUrl, symbols, fromTime, signal, idleMs, hardMs }) {
+function fetchBatch({ token, wsUrl, symbols, fromTime, signal, firstDataMs, idleMs, hardMs }) {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) { reject(abortError()); return; }
 
+    const startedAt = Date.now();
     const wanted = new Set(symbols);
     const bars = new Map(symbols.map(s => [s, new Map()]));
     const done = new Set();
     const snipped = new Set();
+    const diag = { symbols, messages: 0, candles: 0, endReason: null, serverError: null, durationMs: 0 };
     let fieldOrder = CANDLE_FIELDS;
     let idleTimer = null;
     let hardTimer = null;
     let settled = false;
-
-    const ws = new WebSocket(wsUrl);
+    let ws = null;
 
     const cleanup = () => {
       clearTimeout(idleTimer);
       clearTimeout(hardTimer);
       signal?.removeEventListener('abort', onAbort);
-      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) ws.close();
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) ws.close();
     };
-    const finish = () => {
+    const finish = (reason) => {
       if (settled) return;
       settled = true;
       cleanup();
-      resolve({ bars, snipped });
+      diag.endReason = reason;
+      diag.durationMs = Date.now() - startedAt;
+      resolve({ bars, snipped, diag });
     };
-    const fail = (err) => {
+    const onAbort = () => {
       if (settled) return;
       settled = true;
       cleanup();
-      reject(err);
+      reject(abortError());
     };
-    const onAbort = () => fail(abortError());
     signal?.addEventListener('abort', onAbort);
 
-    hardTimer = setTimeout(finish, hardMs);
-    const bumpIdle = () => {
+    hardTimer = setTimeout(() => finish('hard-timeout'), hardMs);
+    const armIdle = (ms, reason) => {
       clearTimeout(idleTimer);
-      idleTimer = setTimeout(finish, idleMs);
+      idleTimer = setTimeout(() => finish(reason), ms);
     };
+
+    try {
+      ws = new WebSocket(wsUrl);
+    } catch {
+      finish('connect-error');
+      return;
+    }
 
     ws.onopen = () => {
       ws.send(JSON.stringify({ type: 'SETUP', channel: 0, version: '0.1', keepaliveTimeout: 60, acceptKeepaliveTimeout: 60 }));
@@ -148,6 +167,7 @@ function fetchBatch({ token, wsUrl, symbols, fromTime, signal, idleMs, hardMs })
       let msg;
       try { msg = JSON.parse(event.data); } catch { return; }
       if (!msg || typeof msg !== 'object') return;
+      diag.messages++;
 
       switch (msg.type) {
         case 'SETUP':
@@ -169,7 +189,7 @@ function fetchBatch({ token, wsUrl, symbols, fromTime, signal, idleMs, hardMs })
             type: 'FEED_SUBSCRIPTION', channel: 1, reset: true,
             add: symbols.map(s => ({ type: 'Candle', symbol: `${s}{=1d}`, fromTime })),
           }));
-          bumpIdle();
+          armIdle(firstDataMs, 'no-data-timeout');
           break;
         case 'FEED_CONFIG': {
           const f = msg.eventFields?.Candle;
@@ -185,42 +205,75 @@ function fetchBatch({ token, wsUrl, symbols, fromTime, signal, idleMs, hardMs })
             if (msg.data[k] !== 'Candle') continue;
             for (const row of parseCandleValues(msg.data[k + 1], fieldOrder)) {
               if (!wanted.has(row.symbol)) continue;
-              if (row.candle) bars.get(row.symbol).set(row.candle.date, row.candle);
+              if (row.candle) {
+                bars.get(row.symbol).set(row.candle.date, row.candle);
+                diag.candles++;
+              }
               if (row.flags & FLAG_SNAPSHOT_SNIP) snipped.add(row.symbol);
               if (row.flags & (FLAG_SNAPSHOT_END | FLAG_SNAPSHOT_SNIP)) done.add(row.symbol);
             }
           }
-          if (done.size >= wanted.size) finish();
-          else bumpIdle();
+          if (done.size >= wanted.size) finish('complete');
+          else if (diag.candles > 0) armIdle(idleMs, 'idle');
           break;
         }
         case 'KEEPALIVE':
           ws.send(JSON.stringify({ type: 'KEEPALIVE', channel: msg.channel }));
           break;
         case 'ERROR':
-          fail(new Error('dxFeed 返回错误'));
+          diag.serverError = describeServerError(msg);
+          finish('server-error');
           break;
         default:
           break;
       }
     };
 
-    ws.onerror = () => fail(new Error('dxFeed WebSocket 连接错误'));
-    ws.onclose = () => finish();
+    ws.onerror = () => finish('socket-error');
+    ws.onclose = () => finish('closed');
   });
 }
 
+function collect(batch, res, data, snipped) {
+  const missing = [];
+  for (const sym of batch) {
+    const sorted = [...res.bars.get(sym).values()].sort((a, b) => a.time - b.time);
+    const clean = dropIncompleteBar(sorted);
+    if (clean.length) data.set(sym, clean);
+    else missing.push(sym);
+    if (res.snipped.has(sym)) snipped.add(sym);
+  }
+  return missing;
+}
+
+async function runPass({ user, symbols, pass, batchSize, timing, fromTime, signal, data, snipped, diagnostics, onBatchDone }) {
+  const missing = [];
+  for (let i = 0; i < symbols.length; i += batchSize) {
+    if (signal?.aborted) throw abortError();
+    const batch = symbols.slice(i, i + batchSize);
+    const { token, wsUrl } = await getQuoteToken(user);
+    if (!token) throw new Error('未获取到 dxFeed token');
+
+    const res = await fetchBatch({ token, wsUrl, symbols: batch, fromTime, signal, ...timing });
+    const batchMissing = collect(batch, res, data, snipped);
+    missing.push(...batchMissing);
+    diagnostics.push({ ...res.diag, pass, missing: batchMissing });
+    onBatchDone(batch.length);
+  }
+  return missing;
+}
+
 /**
- * Fetch daily candles for many symbols, sequentially in small batches.
- * Nothing is persisted: data lives only in the caller's memory.
+ * Fetch daily candles for many symbols, sequentially in small batches,
+ * then retry the symbols that returned nothing with smaller batches and
+ * longer waits. Nothing is persisted: data lives only in the caller's memory.
  *
- * @returns {Promise<{data: Map<string, Array>, failed: string[], snipped: string[]}>}
+ * @returns {Promise<{data: Map<string, Array>, failed: string[], snipped: string[], diagnostics: Array}>}
  */
 export async function fetchDailyCandles(user, symbols, {
   fromDate = '1990-01-01',
   batchSize = 10,
-  idleMs = 5000,
-  hardMs = 90000,
+  retryBatchSize = 3,
   onProgress,
   signal,
 } = {}) {
@@ -229,30 +282,33 @@ export async function fetchDailyCandles(user, symbols, {
 
   const unique = [...new Set(symbols.filter(s => SYMBOL_PATTERN.test(s)))];
   const data = new Map();
-  const failed = [];
-  const snipped = [];
+  const snipped = new Set();
+  const diagnostics = [];
 
-  for (let i = 0; i < unique.length; i += batchSize) {
-    if (signal?.aborted) throw abortError();
-    const batch = unique.slice(i, i + batchSize);
-    const { token, wsUrl } = await getQuoteToken(user);
-    if (!token) throw new Error('未获取到 dxFeed token');
+  let done = 0;
+  const progress = (phase, total) => (n) => {
+    done += n;
+    onProgress?.({ phase, done, total });
+  };
 
-    try {
-      const res = await fetchBatch({ token, wsUrl, symbols: batch, fromTime, signal, idleMs, hardMs });
-      for (const sym of batch) {
-        const sorted = [...res.bars.get(sym).values()].sort((a, b) => a.time - b.time);
-        const clean = dropIncompleteBar(sorted);
-        if (clean.length) data.set(sym, clean);
-        else failed.push(sym);
-        if (res.snipped.has(sym)) snipped.push(sym);
-      }
-    } catch (e) {
-      if (e.name === 'AbortError') throw e;
-      failed.push(...batch);
-    }
-    onProgress?.({ done: Math.min(i + batchSize, unique.length), total: unique.length });
+  const firstMissing = await runPass({
+    user, symbols: unique, pass: 1, batchSize,
+    timing: { firstDataMs: 20000, idleMs: 6000, hardMs: 120000 },
+    fromTime, signal, data, snipped, diagnostics,
+    onBatchDone: progress('fetch', unique.length),
+  });
+
+  let failed = firstMissing;
+  if (firstMissing.length) {
+    done = 0;
+    onProgress?.({ phase: 'retry', done: 0, total: firstMissing.length });
+    failed = await runPass({
+      user, symbols: firstMissing, pass: 2, batchSize: retryBatchSize,
+      timing: { firstDataMs: 30000, idleMs: 10000, hardMs: 180000 },
+      fromTime, signal, data, snipped, diagnostics,
+      onBatchDone: progress('retry', firstMissing.length),
+    });
   }
 
-  return { data, failed, snipped };
+  return { data, failed, snipped: [...snipped], diagnostics };
 }

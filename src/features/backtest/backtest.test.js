@@ -232,3 +232,39 @@ describe('dxFeedCandles parsing', () => {
     expect(dropIncompleteBar(c, afterClose)).toHaveLength(2);
   });
 });
+
+describe('runHistory', () => {
+  it('lists only parameters that differ from defaults', async () => {
+    const { diffFromDefaults } = await import('./engine/runHistory');
+    const changed = { ...pocketPivot.defaultParams, volMultiplier: 1.5, useTrendFilter: false };
+    expect(diffFromDefaults(pocketPivot.paramSchema, changed, pocketPivot.defaultParams))
+      .toEqual(['量能倍数=1.5', '启用趋势过滤=关']);
+    expect(diffFromDefaults(pocketPivot.paramSchema, pocketPivot.defaultParams, pocketPivot.defaultParams)).toEqual([]);
+  });
+
+  it('records win-rate edge vs baseline per horizon', async () => {
+    const { makeRunRecord } = await import('./engine/runHistory');
+    const report = {
+      totalSignals: 10,
+      horizons: [5],
+      summary: [{ horizon: 5, n: 10, winRate: 0.6, excessMean: 0.01 }],
+      baseline: [{ horizon: 5, winRate: 0.55 }],
+    };
+    const r = makeRunRecord({
+      id: 1, at: '12:00:00', strategy: pocketPivot,
+      strategyParams: pocketPivot.defaultParams, evalParams: DEFAULT_EVAL_PARAMS,
+      evalSchema: EVAL_PARAM_SCHEMA, evalDefaults: DEFAULT_EVAL_PARAMS, report,
+    });
+    expect(r.edges[5].winEdge).toBeCloseTo(0.05);
+    expect(r.changes).toEqual([]);
+  });
+});
+
+describe('describeServerError', () => {
+  it('keeps only short server text', async () => {
+    const { describeServerError } = await import('./data/dxFeedCandles');
+    expect(describeServerError({ error: 'INVALID_MESSAGE', message: 'bad symbol' })).toBe('INVALID_MESSAGE: bad symbol');
+    expect(describeServerError({})).toBe('未知错误');
+    expect(describeServerError({ message: 'x'.repeat(500) })).toHaveLength(200);
+  });
+});

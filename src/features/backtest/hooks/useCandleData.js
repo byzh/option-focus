@@ -1,7 +1,16 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { fetchDailyCandles } from '../data/dxFeedCandles';
 
-const INITIAL = { status: 'idle', progress: { done: 0, total: 0 }, error: null, data: null, failed: [], snipped: [], fromDate: null };
+const INITIAL = {
+  status: 'idle',
+  progress: { phase: 'fetch', done: 0, total: 0 },
+  error: null,
+  data: null,
+  failed: [],
+  snipped: [],
+  diagnostics: [],
+  fromDate: null,
+};
 
 /**
  * Loads daily candles into memory for the lifetime of the panel.
@@ -22,7 +31,7 @@ export function useCandleData({ user }) {
     abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    setState({ ...INITIAL, status: 'loading', progress: { done: 0, total: symbols.length } });
+    setState({ ...INITIAL, status: 'loading', progress: { phase: 'fetch', done: 0, total: symbols.length } });
 
     try {
       const res = await fetchDailyCandles(user, symbols, {
@@ -33,7 +42,11 @@ export function useCandleData({ user }) {
         },
       });
       if (controller.signal.aborted) return;
-      setState({ status: 'ready', progress: { done: symbols.length, total: symbols.length }, error: null, ...res, fromDate });
+      if (res.data.size === 0) {
+        setState({ ...INITIAL, ...res, data: null, status: 'error', error: '没有取到任何日线数据，请查看下方诊断信息', fromDate });
+        return;
+      }
+      setState({ ...INITIAL, ...res, status: 'ready', fromDate });
     } catch (e) {
       if (e?.name === 'AbortError') {
         setState(s => ({ ...s, status: 'idle', error: '已中止' }));
